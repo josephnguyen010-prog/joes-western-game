@@ -1,4 +1,4 @@
-# Nine Mile Wash
+# Joe's Wild West Game
 
 A first-person western built as a single web page. Cimarron County, No Man's Land, April 1889 — no county, no court and no sheriff between here and Texas, which is what the Prine brothers worked out before anybody else.
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nine Mile Wash</title>
+<title>Joe&rsquo;s Wild West Game</title>
 <meta name="description" content="A first-person western built as a single web page, with no image, model or audio files.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%231A130E'/><path d='M3 43 Q10 38 20 40 Q32 33 44 40 Q54 38 61 43 Q47 53 32 53 Q17 53 3 43 Z' fill='%23C9A46E'/><path d='M20 41 C18 27 21 14 32 14 C43 14 46 27 44 41 Q32 46 20 41 Z' fill='%23A8834F'/><path d='M25 18 Q32 27 39 18' fill='none' stroke='%237A5C36' stroke-width='5' stroke-linecap='round'/><path d='M19 35 Q32 40 45 35 L45 41 Q32 46 19 41 Z' fill='%234A3620'/></svg>">
 <style>
@@ -14,7 +14,7 @@
 </style>
 </head>
 <body>
-<title>Nine Mile Wash</title>
+<title>Joe&rsquo;s Wild West Game</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Special+Elite&display=swap">
@@ -178,7 +178,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     <div id="cross"><i></i><i></i><i></i><i></i><i></i></div>
     <div id="mark"><i></i><i></i><i></i><i></i></div>
     <div class="panel" id="ledger">
-      <div class="row"><span class="lbl">Nine Mile Wash</span><span class="lbl" id="clock">0:00</span></div>
+      <div class="row"><span class="lbl">Joe&rsquo;s Wild West Game</span><span class="lbl" id="clock">0:00</span></div>
       <div class="row"><span class="val" id="left">12</span><span class="lbl">outlaws afoot</span></div>
       <div id="objective">Wave <b id="wave">1</b> of 3 &middot; <span id="objtxt">they know you are here</span></div>
     </div>
@@ -198,7 +198,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
   <div class="card" id="title">
     <div class="sheet">
       <div class="eyebrow">Cimarron County &middot; No Man&rsquo;s Land &middot; April 1889</div>
-      <h1>Nine Mile Wash</h1>
+      <h1>Joe&rsquo;s Wild West Game</h1>
       <div class="rule dbl"></div>
       <p class="sub">No sheriff between here and Texas. Thirteen of the Prine outfit, three saloons, and one man with a Springfield on the Occidental roof.</p>
       <div class="keys">
@@ -217,7 +217,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
 
   <div class="card gone" id="pause">
     <div class="sheet">
-      <div class="eyebrow">Nine Mile Wash</div>
+      <div class="eyebrow">Joe&rsquo;s Wild West Game</div>
       <h1>Hold Up</h1>
       <div class="rule dbl"></div>
       <p class="sub" id="pauseStat">The street is waiting.</p>
@@ -246,7 +246,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
   <div class="card gone" id="over">
     <div class="sheet">
       <div class="eyebrow" id="ovEye">Coroner&rsquo;s inquest</div>
-      <h1 id="ovTitle">Buried at Nine Mile</h1>
+      <h1 id="ovTitle">Buried in the Dust</h1>
       <div class="rule dbl"></div>
       <p class="sub" id="ovSub">You went down in the street outside the Occidental. The Prine brothers keep the town.</p>
       <div class="stats">
@@ -260,7 +260,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     </div>
   </div>
 
-  <div id="loading">building the wash&hellip;</div>
+  <div id="loading">building the town&hellip;</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2754,7 +2754,7 @@ function updatePlayer(dt){
   var ox=P.x, oz=P.z;
   var nx=P.x+vx*dt, nz=P.z+vz*dt;
   var c=collide(nx,nz,0.45,P.y); P.x=c[0]; P.z=c[1];
-  if(Math.sqrt(P.x*P.x+P.z*P.z)>WORLD_R-0.6&&stateMsgT<=0) say('the wash ends at the cliffs',2);
+  if(Math.sqrt(P.x*P.x+P.z*P.z)>WORLD_R-0.6&&stateMsgT<=0) say('the valley ends at the cliffs',2);
 
   /* Sample the floor along the stride, not just where you ended up. Running
      up the stairs a single frame can carry you across a tread boundary, and
@@ -3195,7 +3195,7 @@ function endGame(won){
   document.body.classList.remove('playing');   // give the mouse pointer back
   ui.hud.classList.remove('live');
   $('ovEye').textContent=won?'Cimarron County Register':'Coroner’s inquest';
-  $('ovTitle').textContent=won?'The Wash Is Quiet':'Buried at Nine Mile';
+  $('ovTitle').textContent=won?'The Street Is Quiet':'Buried in the Dust';
   $('ovSub').textContent=won
     ? 'Thirteen Prines and hangers-on laid out along the boardwalk, the man on the Occidental roof among them. The bank still has no money in it, but the street is yours until sundown.'
     : 'You went down in the street outside the Occidental. The Prine brothers keep the town, and No Man\u2019s Land keeps no records.';

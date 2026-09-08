@@ -360,7 +360,7 @@ function updatePlayer(dt){
   var ox=P.x, oz=P.z;
   var nx=P.x+vx*dt, nz=P.z+vz*dt;
   var c=collide(nx,nz,0.45,P.y); P.x=c[0]; P.z=c[1];
-  if(Math.sqrt(P.x*P.x+P.z*P.z)>WORLD_R-0.6&&stateMsgT<=0) say('the wash ends at the cliffs',2);
+  if(Math.sqrt(P.x*P.x+P.z*P.z)>WORLD_R-0.6&&stateMsgT<=0) say('the valley ends at the cliffs',2);
 
   /* Sample the floor along the stride, not just where you ended up. Running
      up the stairs a single frame can carry you across a tread boundary, and
@@ -801,7 +801,7 @@ function endGame(won){
   document.body.classList.remove('playing');   // give the mouse pointer back
   ui.hud.classList.remove('live');
   $('ovEye').textContent=won?'Cimarron County Register':'Coroner’s inquest';
-  $('ovTitle').textContent=won?'The Wash Is Quiet':'Buried at Nine Mile';
+  $('ovTitle').textContent=won?'The Street Is Quiet':'Buried in the Dust';
   $('ovSub').textContent=won
     ? 'Thirteen Prines and hangers-on laid out along the boardwalk, the man on the Occidental roof among them. The bank still has no money in it, but the street is yours until sundown.'
     : 'You went down in the street outside the Occidental. The Prine brothers keep the town, and No Man\u2019s Land keeps no records.';
