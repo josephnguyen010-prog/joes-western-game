@@ -13,14 +13,14 @@ Everything you see is generated in code at load time. There are no image files, 
 | Key | Action |
 | --- | --- |
 | Mouse | Look and aim |
-| Right-drag | Swing the view fast (when the browser won't capture the pointer) |
+| Right hold | Aim down the sights |
 | W A S D | Walk |
 | Shift | Run |
 | Space | Jump |
 | Left click | Fire |
 | R | Reload the Colt, one round at a time through the gate |
-| 1 / 2 | Colt / Sharps rifle |
-| Z | Look down the scope (Sharps only) |
+| 1 / 2 | Colt / Springfield rifle |
+| Z | Sticky aim, if you prefer a toggle |
 | F | Up on the wagon seat, or down |
 | Q / E, arrows | Turn |
 | Esc | Pause menu — resume, full control list, or quit |
@@ -39,9 +39,9 @@ Pointer lock is used where the browser allows it: the cursor disappears and the 
 
 **People.** Barkeeps working a rag along the counter, a piano player with both hands going, gamblers at the tables, and a priest at the altar with two of his congregation in the pews. Fire a shot within earshot and every one of them gets down and covers their head.
 
-**Guns.** A nickel-plated Colt Single Action Army at life size — 7.5in barrel, 42mm fluted cylinder, open frame window so you can watch the cylinder turn, plow-handle grip, hammer on its own pivot. Six chambers, loaded one at a time. And a Sharps with a brass Malcolm scope, which is the 1870s answer to a sniper rifle: single shot, work the lever between rounds, one hit kills.
+**Guns.** A nickel-plated Colt Single Action Army at life size — 7.5in barrel, 42mm fluted cylinder, open frame window so you can watch the cylinder turn, plow-handle grip, hammer on its own pivot. Six chambers, loaded one at a time. And a Springfield Model 1873 - the US Army issue infantry rifle of the period - with a trapdoor breech, full-length stock, two barrel bands and iron sights. Single shot, flip the breechblock between rounds, one hit kills.
 
-**The rifleman.** A man with that Sharps stands on the Occidental roof. He tracks you, and about a second before he fires the brass catches the sun — that glint is your cue to move or get inside. Put him down and his rifle stays up there; take the stairs behind the saloon and it's yours.
+**The rifleman.** A man with that Springfield stands on the Occidental roof. He tracks you, and about a second before he fires the brass catches the sun — that glint is your cue to move or get inside. Put him down and his rifle stays up there; take the stairs behind the saloon and it's yours.
 
 **A team and a buckboard.** Two horses in collar harness pulling a plank wagon with iron-tyred spoked wheels. They trot on diagonal pairs, bob their heads with the stride and swish their tails, and the hoofbeats quicken as you push them. You drive from the seat, in first person, with the reins in view.
 

@@ -9,7 +9,8 @@ var WAVES=[5,4,4];
 var P={x:-34,z:0,y:0,vy:0,yaw:-Math.PI/2,pitch:-0.02,onGround:true,ammo:6,
        reloading:false,reloadT:0,reloadFrom:6,nextRound:0,recoil:0,bob:0,sway:0,swayY:0,
        inCar:false,moving:0,hurtT:0,fireHeld:false,cockT:0,
-       weapon:'colt',hasRifle:false,rifleAmmo:0,rifleWork:0,rifleClicked:false,scoped:false};
+       weapon:'colt',hasRifle:false,rifleAmmo:0,rifleWork:0,rifleClicked:false,
+       ads:false,adsHold:false};
 var EYE=1.66;
 
 var ui={
@@ -55,8 +56,8 @@ window.addEventListener('keydown',function(e){
   if(e.code==='KeyR') startReload();
   if(e.code==='KeyF') toggleCar();
   if(e.code==='Digit1') setWeapon('colt');
-  if(e.code==='Digit2') setWeapon('sharps');
-  if(e.code==='KeyZ') setScope(!P.scoped);
+  if(e.code==='Digit2') setWeapon('rifle');
+  if(e.code==='KeyZ'){ P.adsHold=!P.adsHold; AU.click(0.13); }   // sticky aim, if you prefer it
   if(e.code==='Space'&&GAME.state==='play') e.preventDefault();
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.code)>=0) e.preventDefault();
 });
@@ -71,15 +72,17 @@ document.addEventListener('mousemove',function(e){
 });
 document.addEventListener('mousedown',function(e){
   if(GAME.state!=='play'||GAME.paused)return;
-  if(e.button===2){ dragging=true; e.preventDefault(); return; }   // right-drag swings the view
+  // Right holds the sights up. Under cursor aim it also steers the view
+  // directly, which is the same thing your hand is already doing.
+  if(e.button===2){ P.ads=true; dragging=true; e.preventDefault(); return; }
   if(e.button!==0)return;
   P.fireHeld=true; fire();
 });
 document.addEventListener('mouseup',function(e){
   if(e.button===0) P.fireHeld=false;
-  if(e.button===2) dragging=false;
+  if(e.button===2){ P.ads=false; dragging=false; }
 });
-window.addEventListener('blur',function(){ dragging=false; P.fireHeld=false; });
+window.addEventListener('blur',function(){ dragging=false; P.fireHeld=false; P.ads=false; });
 document.addEventListener('contextmenu',function(e){ if(GAME.state==='play') e.preventDefault(); });
 
 // Two aiming modes. Pointer lock is the good one: the system cursor vanishes and
@@ -132,14 +135,14 @@ var _v=new THREE.Vector3(),_v2=new THREE.Vector3(),_v3=new THREE.Vector3(),_q=ne
 var _ndc=new THREE.Vector2(), _v4=new THREE.Vector3();
 function activeCam(){ return camera; }   // the wagon is driven from the seat, not from behind
 function aimNDC(){
-  if(cursorAim) return _ndc.set((curX/window.innerWidth)*2-1,-(curY/window.innerHeight)*2+1);
+  if(cursorAim&&!adsOn()) return _ndc.set((curX/window.innerWidth)*2-1,-(curY/window.innerHeight)*2+1);
   return _ndc.set(0,0);
 }
 
 function openPause(){
   if(GAME.state!=='play'||GAME.paused)return;
   GAME.paused=true;
-  P.fireHeld=false; dragging=false;
+  P.fireHeld=false; dragging=false; P.ads=false;
   if(document.exitPointerLock) document.exitPointerLock();
   document.body.classList.remove('playing');          // the cursor comes back
   var left=GAME.left, cut=GAME.kills;
@@ -168,7 +171,7 @@ function clearEnemies(){
 }
 function toTitle(){
   GAME.state='title'; GAME.paused=false;
-  setScope(false); camera.fov=74; camera.updateProjectionMatrix();
+  dropAds();
   if(document.exitPointerLock) document.exitPointerLock();
   document.body.classList.remove('playing');
   ui.hud.classList.remove('live');
@@ -186,21 +189,26 @@ function toTitle(){
 
 function setWeapon(w){
   if(GAME.state!=='play')return;
-  if(w==='sharps'&&!P.hasRifle){ say('you have no rifle',1.6); return; }
+  if(w==='rifle'&&!P.hasRifle){ say('you have no rifle',1.6); return; }
   if(P.weapon===w)return;
-  setScope(false);
+  P.adsHold=false;
   P.weapon=w; P.reloading=false; P.rifleWork=0.45;
   AU.click(0.20);
-  say(w==='colt'?'Colt in hand':'Sharps in hand',1.4);
+  say(w==='colt'?'Colt in hand':'Springfield in hand',1.4);
 }
-function setScope(on){
-  if(P.weapon!=='sharps') on=false;
-  if(P.scoped===on)return;
-  P.scoped=on;
-  camera.fov=on?18:74; camera.updateProjectionMatrix();
-  ui.scope.classList.toggle('on',on);
+function adsOn(){ return (P.ads||P.adsHold)&&GAME.state==='play'&&!GAME.paused; }
+function dropAds(){ P.ads=false; P.adsHold=false; camera.fov=74; camera.updateProjectionMatrix(); }
+/* The sights come up over about a tenth of a second, and the view narrows
+   with them - iron sights, so no scope picture, you just look down the barrel. */
+function aimStep(dt){
+  var on=adsOn();
+  var want=on?(P.weapon==='rifle'?30:54):74;
+  if(Math.abs(camera.fov-want)>0.04){
+    camera.fov=damp(camera.fov,want,16,dt);
+    camera.updateProjectionMatrix();
+  }
+  ui.scope.classList.toggle('on',on&&P.weapon==='rifle');
   ui.cross.style.visibility=on?'hidden':'';
-  AU.click(0.13);
 }
 
 /* one hitscan, shared by both guns */
@@ -243,7 +251,7 @@ function castShot(spread,bodyDmg,headDmg,far){
 
 function fire(){
   if(GAME.state!=='play'||GAME.paused)return;
-  if(P.weapon==='sharps'){
+  if(P.weapon==='rifle'){
     if(P.rifleWork>0)return;
     if(P.rifleAmmo<=0){ AU.click(0.30); say('out of cartridges',2); return; }
     P.rifleAmmo--; GAME.shots++;
@@ -252,7 +260,7 @@ function fire(){
     rflash.m.opacity=1; rflash.g.rotation.z=rr(0,TAU);
     muzzleLight.intensity=5.5; worldFlash.intensity=4.4;
     P.rifleWork=1.55; P.rifleClicked=false;
-    castShot(P.scoped?0.0008:0.011+P.moving*0.020,150,300,300);
+    castShot(adsOn()?0.0010:0.013+P.moving*0.020,150,300,300);
     return;
   }
   if(P.reloading)return;
@@ -263,7 +271,7 @@ function fire(){
   flash.m.opacity=1; flash.g.rotation.z=rr(0,TAU); flash.g.scale.setScalar(rr(0.8,1.25));
   muzzleLight.intensity=4.5; worldFlash.intensity=3.4;
   cylGroup.rotation.z-=TAU/6;
-  var org=castShot(0.0035+P.moving*0.010+P.recoil*0.012+(P.inCar?0.012:0),58,140,220);
+  var org=castShot((adsOn()?0.0016:0.0042)+P.moving*0.010+P.recoil*0.012+(P.inCar?0.012:0),58,140,220);
   FX.eject(org.addScaledVector(_v3,0.22).add(new THREE.Vector3(0,-0.12,0)),_v3,new THREE.Vector3(0,1,0));
 }
 
@@ -310,7 +318,7 @@ function collide(px,pz,r,feet){
 
 function updatePlayer(dt){
   // look
-  var sens=P.scoped?0.00072:0.0021;
+  var sens=0.0021*(camera.fov/74);
   P.yaw-=mouseDX*sens; P.pitch-=mouseDY*sens;
   P.sway=damp(P.sway,clamp(-mouseDX*0.02,-1,1),9,dt);
   P.swayY=damp(P.swayY,clamp(-mouseDY*0.02,-1,1),9,dt);
@@ -322,7 +330,7 @@ function updatePlayer(dt){
     var dz=0.18;
     var ex=Math.abs(nx)>dz?(nx-(nx<0?-dz:dz))/(1-dz):0;
     var ey=Math.abs(ny)>dz?(ny-(ny<0?-dz:dz))/(1-dz):0;
-    var sc=P.scoped?0.30:1;
+    var sc=camera.fov/74;
     P.yaw-=(ex<0?-1:1)*ex*ex*5.0*sc*dt;
     P.pitch-=(ey<0?-1:1)*ey*ey*2.6*sc*dt;
   }
@@ -358,9 +366,9 @@ function updatePlayer(dt){
     riflePickup.g.position.y=riflePickup.y+0.10+Math.sin(riflePickup.t*1.8)*0.05;
     if(Math.hypot(P.x-riflePickup.x,P.z-riflePickup.z)<2.0&&Math.abs(P.y-riflePickup.y)<1.8){
       riflePickup.taken=true; world.remove(riflePickup.g);
-      P.hasRifle=true; P.rifleAmmo=9; P.weapon='sharps'; P.rifleWork=0.9; P.reloading=false;
-      feed('you have the <em>Sharps</em>');
-      say('1 for the Colt, 2 for the Sharps, Z to look down the scope',6);
+      P.hasRifle=true; P.rifleAmmo=9; P.weapon='rifle'; P.rifleWork=0.9; P.reloading=false;
+      feed('you have the <em>Springfield</em>');
+      say('1 Colt, 2 rifle, hold right mouse to aim',6);
     }
   }
   if(P.moving>0.1&&P.onGround) P.bob+=dt*(run?13:8.4);
@@ -379,16 +387,20 @@ function updateGun(dt){
   cylGroup.rotation.z=damp(cylGroup.rotation.z,Math.round(cylGroup.rotation.z/(TAU/6))*(TAU/6),14,dt);
   hammer.rotation.x=damp(hammer.rotation.x,(P.ammo>0?0.42:0.06)+P.recoil*0.45,13,dt);
 
-  var bobY=Math.sin(P.bob)*0.012*P.moving, bobX=Math.cos(P.bob*0.5)*0.010*P.moving;
-  var tx=0.145+bobX+P.sway*0.06, ty=-0.075+bobY+P.swayY*0.05, tz=-0.390+P.recoil*0.075;
-  var rx=P.recoil*0.55, rz=-0.05, ry=0.20;
+  var aim=adsOn(), aimBob=aim?0.35:1;
+  var bobY=Math.sin(P.bob)*0.012*P.moving*aimBob, bobX=Math.cos(P.bob*0.5)*0.010*P.moving*aimBob;
+  // hip pose, or up on the sights: barrel centred, rear notch on the front blade
+  var tx=(aim?0.000:0.145)+bobX+P.sway*(aim?0.02:0.06);
+  var ty=(aim?-0.034:-0.075)+bobY+P.swayY*(aim?0.02:0.05);
+  var tz=(aim?-0.300:-0.390)+P.recoil*0.075;
+  var rx=P.recoil*0.55, rz=aim?0:-0.05, ry=aim?0:0.20;
   if(P.reloading){                                   // gun rolls over to the loading gate
     var need=6-P.reloadFrom, total=0.34+need*0.26+0.42;
     var u=clamp(P.reloadT/0.30,0,1)*clamp((total-P.reloadT)/0.34,0,1);
     rz=-1.15*u; rx-=0.35*u; ry=0.10+0.55*u; ty-=0.075*u; tx-=0.035*u;
     cylGroup.rotation.z-=dt*2.2*u;
   }
-  if(cursorAim){
+  if(cursorAim&&!aim){
     var cnx=clamp((curX/window.innerWidth)*2-1,-1,1);
     var cny=clamp((curY/window.innerHeight)*2-1,-1,1);
     ry-=cnx*0.15; rx-=cny*0.11; tx-=cnx*0.035; ty-=cny*0.02;
@@ -399,23 +411,26 @@ function updateGun(dt){
   if(P.rifleWork>0){
     P.rifleWork-=dt;
     var ru=clamp(1-P.rifleWork/1.55,0,1);
-    if(rifleLever) rifleLever.rotation.x=Math.sin(clamp(ru*1.6,0,1)*Math.PI)*1.15;
+    if(rifleLever) rifleLever.rotation.x=-Math.sin(clamp(ru*1.6,0,1)*Math.PI)*1.35;
     if(!P.rifleClicked&&ru>0.62){ P.rifleClicked=true; AU.clink(); }
     if(P.rifleWork<=0){ P.rifleWork=0; AU.click(0.22); }
   }
   rflash.m.opacity=Math.max(0,rflash.m.opacity-dt*12);
-  var rtx=0.115+bobX*1.4+P.sway*0.05, rty=-0.110+bobY*1.4+P.swayY*0.04, rtz=-0.40+P.recoil*0.10;
+  var rtx=(aim?0.000:0.115)+bobX*1.4+P.sway*(aim?0.02:0.05);
+  var rty=(aim?-0.046:-0.110)+bobY*1.4+P.swayY*(aim?0.02:0.04);
+  var rtz=(aim?-0.250:-0.400)+P.recoil*0.10;
   var rrx=P.recoil*0.42+(P.rifleWork>0?0.10:0);
-  if(cursorAim){
+  if(cursorAim&&!aim){
     var rnx=clamp((curX/window.innerWidth)*2-1,-1,1), rny=clamp((curY/window.innerHeight)*2-1,-1,1);
     rtx-=rnx*0.03; rty-=rny*0.02; rrx-=rny*0.09;
   }
   rifleRig.position.set(damp(rifleRig.position.x,rtx,16,dt),damp(rifleRig.position.y,rty,16,dt),damp(rifleRig.position.z,rtz,20,dt));
   rifleRig.rotation.x=damp(rifleRig.rotation.x,rrx,16,dt);
+  rifleRig.rotation.y=damp(rifleRig.rotation.y,aim?0:0.09,14,dt);
   rifleRig.rotation.z=damp(rifleRig.rotation.z,P.rifleWork>0?-0.22:0,10,dt);
 
-  gunRig.visible=!P.scoped&&P.weapon==='colt';
-  rifleRig.visible=!P.scoped&&P.weapon==='sharps';
+  gunRig.visible=P.weapon==='colt';
+  rifleRig.visible=P.weapon==='rifle';
 }
 
 /* the people who live here: small idle motion, and they get down when it starts */
@@ -729,8 +744,7 @@ function endGame(won){
   if(GAME.state==='over')return;
   GAME.state='over';
   if(document.exitPointerLock) document.exitPointerLock();
-  setScope(false);
-  camera.fov=74; camera.updateProjectionMatrix();
+  dropAds();
   document.body.classList.remove('playing');   // give the mouse pointer back
   ui.hud.classList.remove('live');
   $('ovEye').textContent=won?'Cimarron County Register':'Coroner’s inquest';
@@ -752,12 +766,12 @@ function fmtTime(t){ var m=Math.floor(t/60), s=Math.floor(t%60); return m+':'+(s
    ============================================================ */
 var lastAmmo=-1,lastKills=-1,lastHp=-1,lastLeft=-1,lastClock='',lastWeapon='';
 function updateHud(dt){
-  var shown=P.weapon==='sharps'?P.rifleAmmo:P.ammo;
+  var shown=P.weapon==='rifle'?P.rifleAmmo:P.ammo;
   if(shown!==lastAmmo||P.weapon!==lastWeapon){
     lastAmmo=shown; lastWeapon=P.weapon;
     ui.ammoN.textContent=shown;
-    ui.cal.textContent=P.weapon==='sharps'?'.50-90 Sharps':'.45 Colt';
-    var lit=P.weapon==='sharps'?Math.min(6,shown):shown;
+    ui.cal.textContent=P.weapon==='rifle'?'.45-70 Springfield':'.45 Colt';
+    var lit=P.weapon==='rifle'?Math.min(6,shown):shown;
     for(var i=0;i<6;i++) cylEls[i].className=i<lit?'loaded':'';
   }
   if(GAME.kills!==lastKills){
@@ -792,10 +806,10 @@ function updateHud(dt){
 
   var near=!P.inCar&&Math.hypot(P.x-car.x,P.z-car.z)<4.8;
   ui.prompt.textContent=P.inCar?'F · step down':'F · take the reins';
-  if(P.weapon==='sharps'&&!near&&!P.inCar){
-    ui.prompt.textContent=P.scoped?'Z · lower the scope':'Z · scope  ·  1 · Colt';
+  if(P.weapon==='rifle'&&!near&&!P.inCar){
+    ui.prompt.textContent='Hold right mouse to aim  ·  1 · Colt';
   }
-  ui.prompt.classList.toggle('on',near||P.inCar||(P.weapon==='sharps'));
+  ui.prompt.classList.toggle('on',near||P.inCar||(P.weapon==='rifle'));
 
   var head=(-P.yaw*180/Math.PI)%360; if(head<0)head+=360;
   for(var s2=0;s2<24;s2++){
@@ -869,6 +883,7 @@ function frame(now){
     updateCar(dt);
     updateEnemies(dt);
     updateGun(dt);
+    aimStep(dt);
     FX.step(dt);
     updateAmbient(dt,activeCam());
     updateHud(dt);
@@ -891,7 +906,7 @@ function frame(now){
   renderer.clear();
   var cam=activeCam();
   renderer.render(scene,cam);
-  if(GAME.state!=='title'&&!P.scoped){ renderer.clearDepth(); renderer.render(gunScene,gunCam); }
+  if(GAME.state!=='title'){ renderer.clearDepth(); renderer.render(gunScene,gunCam); }
 }
 
 window.addEventListener('resize',function(){
@@ -910,9 +925,8 @@ function beginRun(){
   GAME.kills=0; GAME.left=0; GAME.wave=0; GAME.shots=0; GAME.hits=0; GAME.t=0; GAME.hp=100; GAME.nextWaveT=3.2;
   P.x=-34; P.z=0; P.y=terrainH(-34,0); P.vy=0; P.yaw=-Math.PI/2; P.pitch=-0.02;
   P.ammo=6; P.reloading=false; P.recoil=0; P.inCar=false; P.hurtT=0; P.fireHeld=false;
-  setScope(false);
-  P.weapon='colt'; P.hasRifle=false; P.rifleAmmo=0; P.rifleWork=0; P.scoped=false;
-  camera.fov=74; camera.updateProjectionMatrix();
+  dropAds();
+  P.weapon='colt'; P.hasRifle=false; P.rifleAmmo=0; P.rifleWork=0;
   if(riflePickup){ if(!riflePickup.taken) world.remove(riflePickup.g); riflePickup=null; }
   ui.pause.classList.add('gone'); $('fullKeys').hidden=true;
   for(var dI=0;dI<doors.length;dI++){ doors[dI].a=0; doors[dI].v=0; doors[dI].hL.rotation.y=0; doors[dI].hR.rotation.y=0; }

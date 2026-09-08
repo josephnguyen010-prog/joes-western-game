@@ -111,19 +111,19 @@ var FX=(function(){
 /* ============================================================
    10. the revolver - single action, six chambers, loaded one at a time
    ============================================================ */
-var NICKEL=new THREE.MeshStandardMaterial({color:0xE7E9EB,metalness:0.95,roughness:0.13,envMap:ENV,envMapIntensity:1.3});
-var STEEL =new THREE.MeshStandardMaterial({color:0xA9AEB4,metalness:0.90,roughness:0.24,envMap:ENV,envMapIntensity:1.1});
-var BLUED =new THREE.MeshStandardMaterial({color:0x33353A,metalness:0.85,roughness:0.32,envMap:ENV});
-var WALNUT=new THREE.MeshStandardMaterial({color:0x5A3416,metalness:0.03,roughness:0.58});
+var BLUE  =new THREE.MeshStandardMaterial({color:0x353D46,metalness:0.92,roughness:0.22,envMap:ENV,envMapIntensity:1.20});
+var CASE  =new THREE.MeshStandardMaterial({color:0x4B5157,metalness:0.86,roughness:0.34,envMap:ENV,envMapIntensity:1.00});
+var STEEL =new THREE.MeshStandardMaterial({color:0x454B52,metalness:0.90,roughness:0.28,envMap:ENV,envMapIntensity:1.05});
+var WALNUT=new THREE.MeshStandardMaterial({color:0x7A4A26,metalness:0.03,roughness:0.54});
 var BRASSY=new THREE.MeshStandardMaterial({color:0xC9A24A,metalness:0.90,roughness:0.28,envMap:ENV});
 var gun=new THREE.Group();
-var gunRig=new THREE.Group();   // holds recoil and reload motion
+var gunRig=new THREE.Group();   // holds recoil and aim motion
 var cylGroup=new THREE.Group();
 var hammer,flash;
 
-/* A Colt Single Action Army at life size: 7.5in barrel, a 42mm cylinder, and
-   an open frame window so you can see the cylinder turn. Earlier the cylinder
-   was 69mm across, which is what made it read as a toy. */
+/* A Colt Single Action Army at life size: 7.5in barrel, 42mm cylinder,
+   blued barrel and cylinder against a case-hardened frame, steel grip
+   frame and trigger guard, one-piece walnut grips flaring to the butt. */
 (function buildGun(){
   function gb(w,h,d,mat,x,y,z,p){var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);(p||gun).add(m);return m;}
   function gc(r1,r2,len,seg,mat,x,y,z,axis,p){
@@ -131,63 +131,72 @@ var hammer,flash;
     if(axis==='z') m.rotation.x=Math.PI/2; else if(axis==='x') m.rotation.z=Math.PI/2;
     m.position.set(x,y,z); (p||gun).add(m); return m;
   }
-  // --- frame: recoil shield, top strap, bottom rail, front post ---
-  gb(0.032,0.050,0.028,NICKEL,0,0.002,0.040);                 // standing breech
-  gc(0.023,0.023,0.011,18,NICKEL,0,0.000,0.028,'z');          // recoil shield face
-  gb(0.024,0.010,0.072,NICKEL,0,0.029,0.006);                 // top strap
-  gb(0.008,0.007,0.016,NICKEL,-0.007,0.036,0.036);            // rear sight ears
-  gb(0.008,0.007,0.016,NICKEL, 0.007,0.036,0.036);
-  gb(0.028,0.021,0.062,NICKEL,0,-0.026,0.014);                // bottom rail
-  gb(0.030,0.050,0.014,NICKEL,0,0.002,-0.032);                // front frame post
-  gc(0.0028,0.0028,0.035,8,BLUED,0,-0.020,0.038,'x');         // frame screws
-  gc(0.0028,0.0028,0.035,8,BLUED,0,0.006,0.046,'x');
-  gb(0.009,0.026,0.024,NICKEL,0.019,0.002,0.034).rotation.y=-0.12;   // loading gate
+  // --- frame: standing breech, top strap, bottom rail, front post ---
+  gb(0.032,0.050,0.028,CASE,0,0.002,0.040);                   // standing breech
+  gc(0.023,0.023,0.011,18,CASE,0,0.000,0.028,'z');            // recoil shield
+  gb(0.024,0.010,0.072,CASE,0,0.029,0.006);                   // top strap
+  gb(0.014,0.005,0.070,BLUE,0,0.034,0.006);                   // sighting groove down the strap
+  gb(0.028,0.021,0.062,CASE,0,-0.026,0.014);                  // bottom rail
+  gb(0.030,0.050,0.014,CASE,0,0.002,-0.032);                  // front frame post
+  gc(0.0030,0.0030,0.034,8,STEEL,0,-0.020,0.038,'x');         // frame screws
+  gc(0.0030,0.0030,0.034,8,STEEL,0,0.006,0.046,'x');
+  gc(0.0026,0.0026,0.034,8,STEEL,0,-0.030,0.062,'x');
+  gb(0.009,0.026,0.024,CASE,0.019,0.002,0.034).rotation.y=-0.12;   // loading gate
 
-  // --- barrel, in line with the top chamber ---
-  gc(0.0118,0.0100,0.190,16,NICKEL,0,0.0125,-0.126,'z');
-  gb(0.009,0.006,0.150,NICKEL,0,0.0215,-0.120);               // sight rib
-  gb(0.005,0.012,0.009,NICKEL,0,0.0255,-0.209);               // front sight blade
-  gc(0.0075,0.0075,0.132,10,NICKEL,0.0165,0.0055,-0.104,'z'); // ejector rod housing
-  gc(0.0100,0.0100,0.024,10,STEEL, 0.0165,0.0055,-0.181,'z'); // rod head
+  // --- barrel, blued, in line with the top chamber ---
+  gc(0.0118,0.0100,0.190,16,BLUE,0,0.0125,-0.126,'z');
+  gb(0.009,0.006,0.150,BLUE,0,0.0215,-0.120);                 // sight rib
+  gb(0.005,0.012,0.009,BLUE,0,0.0255,-0.209);                 // front sight blade
+  gc(0.0075,0.0075,0.132,10,BLUE,0.0165,0.0055,-0.104,'z');   // ejector rod housing
+  gc(0.0100,0.0100,0.024,10,STEEL,0.0165,0.0055,-0.181,'z');  // rod head
   gc(0.0045,0.0045,0.070,8,STEEL,0,0.0125,-0.048,'z');        // base pin
 
   // --- cylinder: 42mm, fluted, six mouths ---
-  gc(0.0210,0.0210,0.041,20,NICKEL,0,0,0,'z',cylGroup);
+  gc(0.0210,0.0210,0.041,20,BLUE,0,0,0,'z',cylGroup);
   gc(0.0175,0.0175,0.006,18,STEEL,0,0,0.023,'z',cylGroup);
-  gc(0.0115,0.0115,0.008,12,BLUED,0,0,0.026,'z',cylGroup);    // ratchet
+  gc(0.0115,0.0115,0.008,12,STEEL,0,0,0.026,'z',cylGroup);    // ratchet
   for(var f=0;f<6;f++){
     var a=f/6*TAU;
-    var fl=gb(0.012,0.005,0.030,BLUED,Math.cos(a)*0.0187,Math.sin(a)*0.0187,-0.002,cylGroup);
+    var fl=gb(0.012,0.005,0.030,MAT.dark,Math.cos(a)*0.0187,Math.sin(a)*0.0187,-0.002,cylGroup);
     fl.rotation.z=a+Math.PI/2;                                 // flutes, sunk flush
-    var ch=gc(0.0055,0.0055,0.044,8,MAT.dark,Math.cos(a+0.5236)*0.0125,Math.sin(a+0.5236)*0.0125,0,'z',cylGroup);
+    gc(0.0055,0.0055,0.044,8,MAT.dark,Math.cos(a+0.5236)*0.0125,Math.sin(a+0.5236)*0.0125,0,'z',cylGroup);
   }
   cylGroup.position.set(0,0,-0.004); gun.add(cylGroup);
 
-  // --- trigger and guard ---
-  var guard=new THREE.Mesh(new THREE.TorusGeometry(0.0205,0.0037,7,20),BRASSY);
+  // --- trigger and steel guard, part of the grip frame ---
+  var guard=new THREE.Mesh(new THREE.TorusGeometry(0.0205,0.0038,7,20),STEEL);
   guard.rotation.y=Math.PI/2; guard.position.set(0,-0.033,0.018); gun.add(guard);
-  gb(0.006,0.021,0.008,BLUED,0,-0.026,0.018).rotation.x=0.16;
+  gb(0.007,0.021,0.008,STEEL,0,-0.026,0.018).rotation.x=0.16;
 
-  // --- the plow-handle grip, hung off one pivot so it reads as one shape ---
+  /* The plow handle. One pivot at the frame and a second lower down, so the
+     grip curves and flares to the butt the way the real one does. */
   var gripG=new THREE.Group(); gripG.position.set(0,-0.030,0.054); gripG.rotation.x=0.30; gun.add(gripG);
-  gb(0.032,0.048,0.012,NICKEL,0,-0.022,0.020,gripG);           // backstrap, upper
-  gb(0.026,0.040,0.011,NICKEL,0,-0.018,-0.019,gripG);          // front strap
-  gb(0.026,0.040,0.031,WALNUT,0,-0.020,0.000,gripG);
-  gb(0.005,0.038,0.029,WALNUT,-0.014,-0.020,0.000,gripG);
-  gb(0.005,0.038,0.029,WALNUT, 0.014,-0.020,0.000,gripG);
-  var lowG=new THREE.Group(); lowG.position.set(0,-0.040,0.002); lowG.rotation.x=0.26; gripG.add(lowG);
-  gb(0.030,0.050,0.012,NICKEL,0,-0.024,0.019,lowG);            // backstrap, lower
-  gb(0.029,0.048,0.030,WALNUT,0,-0.022,0.000,lowG);
-  gb(0.006,0.046,0.028,WALNUT,-0.014,-0.022,0.000,lowG);
-  gb(0.006,0.046,0.028,WALNUT, 0.014,-0.022,0.000,lowG);
-  gb(0.035,0.009,0.035,NICKEL,0,-0.049,0.006,lowG);            // butt cap
-  gc(0.0024,0.0024,0.032,8,BRASSY,0,-0.022,0.000,'x',lowG);    // grip screw
+  gb(0.033,0.048,0.013,STEEL,0,-0.022,0.021,gripG);           // backstrap
+  gb(0.027,0.040,0.012,STEEL,0,-0.018,-0.019,gripG);          // front strap
+  gb(0.027,0.040,0.032,WALNUT,0,-0.020,0.000,gripG);
+  gb(0.006,0.038,0.030,WALNUT,-0.0145,-0.020,0.000,gripG);
+  gb(0.006,0.038,0.030,WALNUT, 0.0145,-0.020,0.000,gripG);
+  var lowG=new THREE.Group(); lowG.position.set(0,-0.040,0.002); lowG.rotation.x=0.27; gripG.add(lowG);
+  gb(0.032,0.050,0.013,STEEL,0,-0.024,0.020,lowG);            // backstrap, lower
+  gb(0.031,0.048,0.031,WALNUT,0,-0.022,0.000,lowG);
+  gb(0.007,0.046,0.029,WALNUT,-0.0155,-0.022,0.000,lowG);
+  gb(0.007,0.046,0.029,WALNUT, 0.0155,-0.022,0.000,lowG);
+  gb(0.036,0.020,0.034,WALNUT,0,-0.042,0.004,lowG);           // the flare at the heel
+  gb(0.009,0.020,0.032,WALNUT,-0.0175,-0.042,0.004,lowG);
+  gb(0.009,0.020,0.032,WALNUT, 0.0175,-0.042,0.004,lowG);
+  gb(0.038,0.010,0.036,STEEL,0,-0.055,0.006,lowG);            // butt cap
+  gc(0.0024,0.0024,0.032,8,STEEL,0,-0.022,0.000,'x',lowG);    // grip screw
 
-  // --- hammer on its own pivot, sitting cocked ---
+  /* The hammer: a wide checkered spur sweeping up and back, which is most
+     of what makes the profile read as a Colt. */
   hammer=new THREE.Group(); hammer.position.set(0,0.024,0.046); gun.add(hammer);
-  gb(0.010,0.034,0.012,STEEL,0,0.015,0.003,hammer);
-  var spur=gb(0.013,0.009,0.020,STEEL,0,0.032,0.010,hammer); spur.rotation.x=0.55;
-  for(var k=0;k<4;k++) gb(0.014,0.0018,0.003,BLUED,0,0.0345+k*0.0014,0.004+k*0.0048,hammer).rotation.x=0.55;
+  gb(0.011,0.036,0.013,CASE,0,0.016,0.003,hammer);            // hammer body
+  gb(0.013,0.014,0.012,CASE,0,0.033,0.007,hammer);            // the throat of the spur
+  var spur=gb(0.018,0.011,0.030,CASE,0,0.040,0.019,hammer); spur.rotation.x=0.72;
+  var tip=gb(0.018,0.009,0.014,CASE,0,0.045,0.034,hammer); tip.rotation.x=1.15;
+  for(var k=0;k<5;k++){
+    gb(0.019,0.0018,0.0035,BLUE,0,0.0435+k*0.0016,0.010+k*0.0056,hammer).rotation.x=0.72;
+  }
 
   // --- muzzle flash ---
   var fg=new THREE.Group();
@@ -205,46 +214,64 @@ var hammer,flash;
 })();
 
 /* ============================================================
-   10b. the Sharps, as you carry it
+   10b. the Springfield, as you carry it
    ============================================================ */
 var rifleRig=new THREE.Group(), rifleLever=null, rflash=null;
-(function buildSharps(){
-  var R=new THREE.Group();
+function springfield(R,detail){
   function rb(w,h,d,mat,x,y,z,p){var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);(p||R).add(m);return m;}
   function rc(r1,r2,len,seg,mat,x,y,z,axis,p){
     var m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,len,seg),mat);
     if(axis==='z') m.rotation.x=Math.PI/2; else if(axis==='x') m.rotation.z=Math.PI/2;
     m.position.set(x,y,z); (p||R).add(m); return m;
   }
-  rb(0.030,0.032,0.80,BLUED,0,0.012,-0.44);              // octagon barrel
-  rb(0.034,0.020,0.80,BLUED,0,0.012,-0.44).rotation.z=Math.PI/4;
-  rb(0.040,0.036,0.04,BLUED,0,0.012,-0.83);              // muzzle band
-  rb(0.007,0.014,0.010,BLUED,0,0.032,-0.80);             // front sight
-  rb(0.042,0.080,0.20,BLUED,0,-0.012,0.030);             // receiver
-  rb(0.046,0.020,0.09,BLUED,0,0.030,0.020);              // tang and rear sight
-  rb(0.008,0.016,0.014,BLUED,0,0.046,0.062);
-  rb(0.038,0.058,0.15,WALNUT,0,-0.030,0.175);            // wrist
-  rb(0.046,0.108,0.27,WALNUT,0,-0.046,0.340);            // butt
-  rb(0.048,0.132,0.022,BLUED,0,-0.050,0.482);            // crescent buttplate
-  rb(0.040,0.050,0.30,WALNUT,0,-0.014,-0.205);           // forend
-  rb(0.046,0.048,0.03,BLUED,0,-0.012,-0.345);            // barrel band
-  rifleLever=new THREE.Group(); rifleLever.position.set(0,-0.046,0.070); R.add(rifleLever);
-  rb(0.016,0.062,0.020,BLUED,0,-0.028,-0.012,rifleLever);
-  rb(0.016,0.018,0.070,BLUED,0,-0.052,0.020,rifleLever);
-  rb(0.007,0.020,0.009,BLUED,0,-0.032,0.052).rotation.x=0.1;   // trigger
-  rb(0.014,0.036,0.014,STEEL,0,0.034,0.086).rotation.x=-0.35;  // hammer
-  // brass Malcolm scope
-  rc(0.018,0.018,0.86,14,BRASSY,0,0.055,-0.30,'z');
-  rc(0.024,0.024,0.05,14,BRASSY,0,0.055,-0.72,'z');
-  rc(0.022,0.022,0.05,14,BRASSY,0,0.055,0.10,'z');
-  rb(0.016,0.038,0.020,BLUED,0,0.036,-0.60);
-  rb(0.016,0.038,0.020,BLUED,0,0.036,0.030);
+  rc(0.0138,0.0104,0.840,14,BLUE,0,0.016,-0.420,'z');          // barrel
+  rb(0.046,0.050,0.680,WALNUT,0,-0.010,-0.360);                // forestock
+  rb(0.054,0.054,0.030,STEEL,0,0.004,-0.300);                  // barrel bands
+  rb(0.054,0.054,0.030,STEEL,0,0.004,-0.620);
+  rb(0.052,0.050,0.044,STEEL,0,0.002,-0.706);                  // nose cap
+  rc(0.0048,0.0048,0.600,7,STEEL,0,-0.020,-0.400,'z');         // ramrod
+  rb(0.044,0.056,0.175,CASE,0,0.004,0.055);                    // receiver
+  rb(0.050,0.048,0.115,WALNUT,0,-0.020,0.108);                 // lock plate seat
+  rb(0.040,0.054,0.140,WALNUT,0,-0.030,0.190);                 // wrist
+  rb(0.048,0.100,0.265,WALNUT,0,-0.046,0.362);                 // butt
+  rb(0.048,0.040,0.090,WALNUT,0,0.006,0.268);                  // comb
+  rb(0.050,0.128,0.022,STEEL,0,-0.050,0.498);                  // buttplate
+  rb(0.007,0.021,0.009,STEEL,0,-0.036,0.078).rotation.x=0.12;  // trigger
+  rb(0.014,0.010,0.088,STEEL,0,-0.046,0.088);                  // guard, bottom strap
+  rb(0.012,0.026,0.011,STEEL,0,-0.036,0.048);                  // guard, front post
+  rb(0.012,0.026,0.011,STEEL,0,-0.036,0.130);                  // guard, rear post
+  // the trapdoor breechblock, hinged at its forward edge
+  rifleLever=new THREE.Group(); rifleLever.position.set(0,0.030,-0.018); R.add(rifleLever);
+  rb(0.038,0.024,0.076,CASE,0,0.005,0.040,rifleLever);
+  rb(0.030,0.012,0.018,CASE,0,0.020,0.070,rifleLever);         // the thumb latch
+  // side hammer, on the right of the lock
+  var hm=new THREE.Group(); hm.position.set(0.024,0.010,0.104); R.add(hm);
+  rb(0.010,0.038,0.014,CASE,0,0.016,0,hm);
+  rb(0.012,0.012,0.022,CASE,0,0.033,0.008,hm).rotation.x=0.7;
+  // iron sights: a ladder rear leaf and a front blade
+  rb(0.022,0.010,0.046,STEEL,0,0.030,-0.098);
+  rb(0.018,0.014,0.006,STEEL,0,0.041,-0.098);
+  rb(0.005,0.011,0.006,STEEL,-0.0065,0.049,-0.098);            // the notch, either side
+  rb(0.005,0.011,0.006,STEEL, 0.0065,0.049,-0.098);
+  rb(0.016,0.011,0.026,STEEL,0,0.028,-0.800);                  // front sight base
+  rb(0.005,0.013,0.008,STEEL,0,0.040,-0.800);                  // front blade
+  if(detail){
+    var sw1=new THREE.Mesh(new THREE.TorusGeometry(0.012,0.0028,5,10),STEEL);
+    sw1.rotation.y=Math.PI/2; sw1.position.set(0,-0.040,-0.300); R.add(sw1);
+    var sw2=new THREE.Mesh(new THREE.TorusGeometry(0.012,0.0028,5,10),STEEL);
+    sw2.rotation.y=Math.PI/2; sw2.position.set(0,-0.076,0.300); R.add(sw2);
+  }
+  return R;
+}
+(function buildRifle(){
+  var R=new THREE.Group();
+  springfield(R,true);
   var fm=new THREE.MeshBasicMaterial({color:0xFFD98A,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide});
   var fg=new THREE.Group();
-  fg.add(new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.34),fm));
-  var f2=new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.34),fm); f2.rotation.z=Math.PI/2; f2.rotation.y=Math.PI/2; fg.add(f2);
-  var f3=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.22,7,1,true),fm); f3.rotation.x=-Math.PI/2; f3.position.z=-0.10; fg.add(f3);
-  fg.position.set(0,0.012,-0.88); R.add(fg);
+  fg.add(new THREE.Mesh(new THREE.PlaneGeometry(0.32,0.32),fm));
+  var f2=new THREE.Mesh(new THREE.PlaneGeometry(0.32,0.32),fm); f2.rotation.z=Math.PI/2; f2.rotation.y=Math.PI/2; fg.add(f2);
+  var f3=new THREE.Mesh(new THREE.ConeGeometry(0.048,0.20,7,1,true),fm); f3.rotation.x=-Math.PI/2; f3.position.z=-0.09; fg.add(f3);
+  fg.position.set(0,0.016,-0.860); R.add(fg);
   rflash={g:fg,m:fm};
   R.traverse(function(o){ if(o.isMesh) o.renderOrder=2; });
   rifleRig.add(R); gunScene.add(rifleRig);
@@ -253,17 +280,13 @@ var rifleRig=new THREE.Group(), rifleLever=null, rflash=null;
   rifleRig.visible=false;
 })();
 
-/* a Sharps lying where its owner left it */
+/* a Springfield lying where its owner left it */
 function makeRiflePickup(x,y,z){
   var g=new THREE.Group();
-  function pb(w,h,d,mat,px,py,pz){var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(px,py,pz);m.castShadow=true;g.add(m);return m;}
-  pb(0.032,0.034,0.82,BLUED,0,0.10,-0.30);
-  pb(0.044,0.082,0.20,BLUED,0,0.09,0.20);
-  pb(0.048,0.100,0.30,WALNUT,0,0.08,0.48);
-  pb(0.042,0.052,0.30,WALNUT,0,0.09,-0.06);
-  var sc=new THREE.Mesh(new THREE.CylinderGeometry(0.019,0.019,0.86,12),BRASSY);
-  sc.rotation.x=Math.PI/2; sc.position.set(0,0.145,-0.16); sc.castShadow=true; g.add(sc);
+  var R=new THREE.Group(); springfield(R,false); g.add(R);
+  g.traverse(function(o){ if(o.isMesh) o.castShadow=true; });
   g.position.set(x,y,z); g.rotation.y=0.6; g.rotation.z=0.06;
+  R.position.y=0.10;
   world.add(g);
   return {g:g,x:x,y:y,z:z,taken:false,t:0};
 }
@@ -364,21 +387,12 @@ function Rifleman(x,y,z,yaw,name){
   var brim=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.026,12),hatm);
   brim.position.y=1.76; brim.castShadow=true; g.add(brim);
 
-  // the Sharps
-  var rifle=new THREE.Group(); rifle.position.set(0.05,1.40,0.10); g.add(rifle);
-  bx(0.035,0.045,0.86,BLUED,0,0,-0.50,rifle);                 // barrel, octagon-ish
-  bx(0.045,0.075,0.20,BLUED,0,-0.010,0.02,rifle);             // action
-  bx(0.045,0.055,0.34,WALNUT,0,-0.020,0.24,rifle);            // stock
-  bx(0.042,0.10,0.10,WALNUT,0,-0.055,0.38,rifle);
-  bx(0.040,0.05,0.26,WALNUT,0,-0.030,-0.20,rifle);            // forend
-  bx(0.020,0.055,0.030,BLUED,0,-0.055,0.10,rifle);            // lever
-  var scope=new THREE.Mesh(new THREE.CylinderGeometry(0.017,0.017,0.80,12),BRASSY);
-  scope.rotation.x=Math.PI/2; scope.position.set(0,0.052,-0.28); rifle.add(scope);
-  bx(0.020,0.045,0.020,BLUED,0,0.028,-0.60,rifle);
-  bx(0.020,0.045,0.020,BLUED,0,0.028,0.02,rifle);
-  var glint=new THREE.Mesh(new THREE.SphereGeometry(0.030,8,6),
+  // the same Springfield you will be taking off him
+  var rifle=new THREE.Group(); rifle.position.set(0.05,1.40,0.30); g.add(rifle);
+  springfield(rifle,false);
+  var glint=new THREE.Mesh(new THREE.SphereGeometry(0.026,8,6),
     new THREE.MeshBasicMaterial({color:0xFFF0C0,transparent:true,opacity:0}));
-  glint.position.set(0,0.052,0.13); rifle.add(glint);
+  glint.position.set(0,0.020,-0.30); rifle.add(glint);        // sun off the barrel band
 
   g.position.set(x,y,z); g.rotation.y=yaw; world.add(g);
   var e={

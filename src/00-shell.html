@@ -101,18 +101,12 @@ body.cursoraim.playing #app{cursor:none}
 #feed div em{color:var(--brass);font-style:normal}
 @keyframes fade{0%{opacity:0;transform:translateX(14px)}9%{opacity:1;transform:none}72%{opacity:1}100%{opacity:0}}
 
-/* the Malcolm scope */
+/* sighting down the barrel: the edges fall away, nothing is drawn over the sights */
 #scope{position:absolute;inset:0;display:none;pointer-events:none;
-  background:radial-gradient(circle at 50% 50%,
-    rgba(0,0,0,0) 0 25%, rgba(20,14,10,.55) 25.4% 27%, rgba(8,6,5,.97) 29% 100%)}
+  background:radial-gradient(ellipse 62% 56% at 50% 50%,
+    rgba(0,0,0,0) 45%, rgba(16,11,8,.34) 78%, rgba(10,7,5,.62) 100%)}
 #scope.on{display:block}
-#scope i{position:absolute;background:rgba(18,14,10,.92)}
-#scope .v{left:50%;top:calc(50% - 25vmin);width:1px;height:50vmin;margin-left:-.5px}
-#scope .h{top:50%;left:calc(50% - 25vmin);height:1px;width:50vmin;margin-top:-.5px}
-#scope .t{left:50%;width:9px;height:1px;margin-left:-4.5px}
-#scope .t1{top:calc(50% + 5vmin)}
-#scope .t2{top:calc(50% + 9vmin);width:7px;margin-left:-3.5px}
-#scope .t3{top:calc(50% + 13vmin);width:5px;margin-left:-2.5px}
+#scope i{display:none}
 #prompt{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);font-size:13px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--brass);background:rgba(20,16,14,.7);padding:6px 14px;
   border:1px solid rgba(217,164,65,.35);opacity:0;transition:opacity .2s}
@@ -189,11 +183,12 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
       <div class="eyebrow">Cimarron County &middot; No Man&rsquo;s Land &middot; April 1889</div>
       <h1>Nine Mile Wash</h1>
       <div class="rule dbl"></div>
-      <p class="sub">No sheriff between here and Texas. Thirteen of the Prine outfit, three saloons, and one man with a rifle on the Occidental roof.</p>
+      <p class="sub">No sheriff between here and Texas. Thirteen of the Prine outfit, three saloons, and one man with a Springfield on the Occidental roof.</p>
       <div class="keys">
         <div><span>Mouse</span><span>look and aim</span></div>
         <div><span>W A S D</span><span>move, Shift to run</span></div>
         <div><span>Left click</span><span>fire</span></div>
+        <div><span>Right hold</span><span>aim down the sights</span></div>
         <div><span>R</span><span>reload</span></div>
         <div><span>F</span><span>take the wagon</span></div>
         <div><span>Esc</span><span>pause, and the rest of the keys</span></div>
@@ -211,15 +206,15 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
       <p class="sub" id="pauseStat">The street is waiting.</p>
       <div class="keys" id="fullKeys" hidden>
         <div><span>Mouse</span><span>look and aim</span></div>
-        <div><span>Right-drag</span><span>swing the view fast</span></div>
+        <div><span>Right hold</span><span>aim down the sights</span></div>
         <div><span>W A S D</span><span>walk</span></div>
         <div><span>Shift</span><span>run</span></div>
         <div><span>Space</span><span>jump</span></div>
         <div><span>Q / E, arrows</span><span>turn</span></div>
         <div><span>Left click</span><span>fire</span></div>
         <div><span>R</span><span>reload, one round at a time</span></div>
-        <div><span>1 / 2</span><span>Colt / Sharps rifle</span></div>
-        <div><span>Z</span><span>look down the scope</span></div>
+        <div><span>1 / 2</span><span>Colt / Springfield rifle</span></div>
+        <div><span>Z</span><span>sticky aim</span></div>
         <div><span>F</span><span>up on the wagon seat / down</span></div>
         <div><span>Esc</span><span>this menu</span></div>
       </div>
