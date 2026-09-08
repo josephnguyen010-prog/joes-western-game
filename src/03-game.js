@@ -371,11 +371,12 @@ function updatePlayer(dt){
       say('1 Colt, 2 rifle, hold right mouse to aim',6);
     }
   }
-  if(P.moving>0.1&&P.onGround) P.bob+=dt*(run?13:8.4);
-  var bobY=Math.sin(P.bob)*0.045*P.moving, bobX=Math.cos(P.bob*0.5)*0.03*P.moving;
+  if(P.moving>0.1&&P.onGround) P.bob+=dt*(run?13:8.4);   // still drives the weapon, not the view
 
-  camera.position.set(P.x+bobX*0.2,P.y+EYE+bobY,P.z);
-  camera.rotation.set(P.pitch,P.yaw,Math.sin(P.bob*0.5)*0.012*P.moving,'YXZ');
+  // The view is held level and still. Head bob and camera roll read as
+  // gimmickry rather than motion, so neither is applied here.
+  camera.position.set(P.x,P.y+EYE,P.z);
+  camera.rotation.set(P.pitch,P.yaw,0,'YXZ');
 }
 
 /* --- the viewmodel --- */
@@ -569,28 +570,38 @@ function updateEnemies(dt){
     e.g.rotation.y=Math.atan2(dx,dz)+Math.PI;
     if(e.hitT>0){ e.hitT-=dt; e.g.position.x=e.x+rr(-0.03,0.03); }
 
-    var wantMove=(!los||d>17);
+    /* A run cycle on jointed legs: the hip swings, the knee folds on the
+       recovery stroke, the arms counter-swing and the body rises on each
+       step. A rigid leg swinging from the hip reads as a shop dummy. */
+    var wantMove=(!los||d>17), lift=0;
     if(wantMove){
-      var s=e.speed*(e.alerted?1.25:1);
+      var s=e.speed*(e.alerted?1.3:1);
       var nx=e.x+dx/d*s*dt, nz=e.z+dz/d*s*dt;
-      var c=collide(nx,nz,0.42); e.x=c[0]; e.z=c[1];
-      e.phase+=dt*s*2.6;
-      e.legL.rotation.x=Math.sin(e.phase)*0.72;
-      e.legR.rotation.x=-Math.sin(e.phase)*0.72;
-      e.armL.rotation.x=-Math.sin(e.phase)*0.5;
-      e.armR.rotation.x=Math.sin(e.phase)*0.4;
+      var c=collide(nx,nz,0.42,0); e.x=c[0]; e.z=c[1];
+      e.phase+=dt*s*3.0;
+      var amp=clamp(s/3.0,0.55,1.30);
+      e.legL.hip.rotation.x  = Math.sin(e.phase)*0.88*amp;
+      e.legR.hip.rotation.x  =-Math.sin(e.phase)*0.88*amp;
+      e.legL.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95))*1.05*amp;
+      e.legR.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95+Math.PI))*1.05*amp;
+      e.armL.rotation.x=-Math.sin(e.phase)*0.68*amp;
+      e.armR.rotation.x= Math.sin(e.phase)*0.52*amp;
+      lift=Math.abs(Math.sin(e.phase))*0.055*amp;
     }else{
       e.strafeCd-=dt;
       if(e.strafeCd<=0){ e.strafe*=-1; e.strafeCd=rr(1.2,2.8); }
       var sx=-dz/d*e.strafe*1.5, sz=dx/d*e.strafe*1.5;
-      var c2=collide(e.x+sx*dt,e.z+sz*dt,0.42); e.x=c2[0]; e.z=c2[1];
-      e.phase+=dt*3.4;
-      e.legL.rotation.x=Math.sin(e.phase)*0.28;
-      e.legR.rotation.x=-Math.sin(e.phase)*0.28;
+      var c2=collide(e.x+sx*dt,e.z+sz*dt,0.42,0); e.x=c2[0]; e.z=c2[1];
+      e.phase+=dt*3.6;
+      e.legL.hip.rotation.x  = Math.sin(e.phase)*0.30;
+      e.legR.hip.rotation.x  =-Math.sin(e.phase)*0.30;
+      e.legL.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95))*0.34;
+      e.legR.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95+Math.PI))*0.34;
       e.armL.rotation.x=damp(e.armL.rotation.x,-0.15,6,dt);
       e.armR.rotation.x=damp(e.armR.rotation.x,-1.42,9,dt);
+      lift=Math.abs(Math.sin(e.phase))*0.018;
     }
-    p.x=e.x; p.z=e.z; p.y=terrainH(e.x,e.z);
+    p.x=e.x; p.z=e.z; p.y=terrainH(e.x,e.z)+lift;
 
     if(los&&d<30){
       e.fireCd-=dt*(e.alerted?1.2:1);
@@ -700,9 +711,8 @@ function updateCar(dt){
     if(off> 1.9) off= 1.9; if(off<-1.9) off=-1.9;            // you can only crane so far
     off=damp(off,0,0.7,dt);
     P.yaw=aligned+off;
-    var jolt=Math.sin(car.gait*2)*0.022*amp+Math.sin(car.gait*3.1)*0.010*amp;
-    camera.position.set(car.x+Math.sin(car.yaw)*0.5,gy+2.16+jolt,car.z+Math.cos(car.yaw)*0.5);
-    camera.rotation.set(P.pitch+jolt*0.35,P.yaw,car.g.rotation.z*0.6+Math.sin(car.gait)*0.010*amp,'YXZ');
+    camera.position.set(car.x+Math.sin(car.yaw)*0.5,gy+2.16,car.z+Math.cos(car.yaw)*0.5);
+    camera.rotation.set(P.pitch,P.yaw,0,'YXZ');   // level on the seat as well
   }
 }
 

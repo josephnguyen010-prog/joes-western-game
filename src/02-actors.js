@@ -305,10 +305,19 @@ function Outlaw(x,z,name){
   var hatm=new THREE.MeshLambertMaterial({color:pick([0x2c241c,0x3d3226,0x4a3a28])});
   function bx(w,h,d,m,px,py,pz,p){var q=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);q.position.set(px,py,pz);q.castShadow=true;(p||g).add(q);return q;}
 
-  var legL=bx(0.20,0.86,0.24,shirt,-0.15,0.43,0);
-  var legR=bx(0.20,0.86,0.24,shirt, 0.15,0.43,0);
-  legL.geometry.translate(0,-0.43,0); legL.position.y=0.86;
-  legR.geometry.translate(0,-0.43,0); legR.position.y=0.86;
+  // jointed legs: hip pivot, knee pivot, foot - a straight box cannot run
+  function limb(px){
+    var hipG=new THREE.Group(); hipG.position.set(px,0.95,0); g.add(hipG);
+    var up=new THREE.Mesh(new THREE.BoxGeometry(0.20,0.46,0.22),shirt);
+    up.position.y=-0.23; up.castShadow=true; hipG.add(up);
+    var kneeG=new THREE.Group(); kneeG.position.y=-0.46; hipG.add(kneeG);
+    var lo=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.44,0.18),shirt);
+    lo.position.y=-0.22; lo.castShadow=true; kneeG.add(lo);
+    var ft=new THREE.Mesh(new THREE.BoxGeometry(0.19,0.10,0.29),MAT.dark);
+    ft.position.set(0,-0.49,0.05); ft.castShadow=true; kneeG.add(ft);
+    return {hip:hipG,knee:kneeG};
+  }
+  var legL=limb(-0.15), legR=limb(0.15);
   bx(0.62,0.52,0.40,coat,0,1.02,0);                                   // coat skirt
   var torso=bx(0.58,0.62,0.34,coat,0,1.50,0);
   torso.userData={owner:null,part:'body'};
@@ -329,7 +338,7 @@ function Outlaw(x,z,name){
   var e={
     g:g,name:name,hp:100,dead:false,state:'walk',
     x:x,z:z,yaw:0,phase:rr(0,TAU),fireCd:rr(0.8,2.6),strafe:rr(-1,1)>0?1:-1,strafeCd:rr(1,3),
-    legL:legL,legR:legR,armL:armL,armR:armR,torso:torso,head:head,fallT:0,hitT:0,speed:rr(2.4,3.3)
+    legL:legL,legR:legR,armL:armL,armR:armR,torso:torso,head:head,fallT:0,hitT:0,speed:rr(2.6,3.5)
   };
   torso.userData.owner=e; head.userData.owner=e;
   g.position.set(x,terrainH(x,z),z);
@@ -399,7 +408,8 @@ function Rifleman(x,y,z,yaw,name){
     g:g,name:name,kind:'sniper',hp:100,dead:false,state:'aim',
     x:x,y:y,z:z,yaw:yaw,rifle:rifle,glint:glint,glintM:glint.material,
     fireCd:4.2,charge:0,phase:0,strafe:1,strafeCd:9,hitT:0,fallT:0,speed:0,
-    legL:{rotation:{x:0}},legR:{rotation:{x:0}},armL:armL,armR:armR,torso:torso,head:head
+    legL:{hip:{rotation:{x:0}},knee:{rotation:{x:0}}},
+    legR:{hip:{rotation:{x:0}},knee:{rotation:{x:0}}},armL:armL,armR:armR,torso:torso,head:head
   };
   torso.userData.owner=e; head.userData.owner=e;
   hitables.push(torso); hitables.push(head);

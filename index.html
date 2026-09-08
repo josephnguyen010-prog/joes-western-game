@@ -478,6 +478,22 @@ function poster(parent,lx,ly,lz,rotY,scale){
   parent.add(m); hitables.push(m);
   return m;
 }
+function stoneTex(){
+  var c=cvs(256,256),g=c.getContext('2d'),i,j;
+  g.fillStyle='#9C9184'; g.fillRect(0,0,256,256);
+  var rows=8, hgt=256/rows;
+  for(j=0;j<rows;j++){
+    var off=(j%2)?32:0, wdt=64;
+    for(i=-1;i<5;i++){
+      var x=i*wdt+off, y=j*hgt;
+      var v=rr(-16,16);
+      g.fillStyle='rgb('+(150+v|0)+','+(140+v|0)+','+(128+v|0)+')';
+      g.fillRect(x+1.5,y+1.5,wdt-3,hgt-3);
+    }
+  }
+  for(i=0;i<2600;i++){ g.fillStyle='rgba(70,62,52,'+(rnd()*0.15).toFixed(3)+')'; g.fillRect(rnd()*256,rnd()*256,rnd()*4,rnd()*3); }
+  return toTex(c,1,1);
+}
 function skyTex(){
   var c=cvs(8,256),g=c.getContext('2d');
   var grd=g.createLinearGradient(0,0,0,256);
@@ -702,9 +718,11 @@ var MAT={
   hide:new THREE.MeshLambertMaterial({color:0x6B4A2E})
 };
 var PLANKS=[
-  plank('#8a6a45','#4a3220'), plank('#9c8358','#5a442a'), plank('#6f5940','#3a2b1c'),
-  plank('#a8926b','#63492e'), plank('#7d6248','#412e1e')
+  plank('#8a6a45','#4a3220'), plank('#C6BBA2','#8E8471'), plank('#6f5940','#3a2b1c'),
+  plank('#A05442','#5C2A20'), plank('#7d6248','#412e1e'),
+  plank('#7C8574','#48513F'), plank('#B39A6C','#6A5533')
 ];
+var STONEMAT=null;                       // built on demand, only the bank needs it
 
 /* ============================================================
    7. the town
@@ -769,9 +787,14 @@ function insideBuilding(x,z){
   return false;
 }
 
-function building(x,z,face,w,d,h,name,kind,lowFront){
+function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
   var S=Structure(x,z,face), g=S.g;
-  var shell=pick(PLANKS), open=!!kind;
+  style=style||'front';
+  var shell=PLANKS[(paint===undefined?0:paint)%PLANKS.length], open=!!kind;
+  if(style==='stone'){
+    if(!STONEMAT) STONEMAT=new THREE.MeshLambertMaterial({map:stoneTex()});
+    shell=STONEMAT;
+  }
   var wallMat=shell;
   if(open){ wallMat=shell.clone(); wallMat.emissive=new THREE.Color(0x140e08); }
 
@@ -852,15 +875,75 @@ function building(x,z,face,w,d,h,name,kind,lowFront){
     S.part(1.5,1.2,0.12,MAT.glass, w/2-1.5,1.75,-d/2-0.07,false);
   }
 
-  var fh=h+(lowFront?0.95:rr(1.4,2.4));
-  S.part(w+0.34,fh-h,0.36,shell,0,(h+fh)/2,-d/2-0.14,false);         // false front: parapet only
+  var fh=h+(lowFront?0.95:rr(1.5,2.3)), i;
   S.part(0.30,h,0.34,shell,-w/2-0.12,h/2,-d/2-0.14,false);           // corner pilasters
   S.part(0.30,h,0.34,shell, w/2+0.12,h/2,-d/2-0.14,false);
-  S.part(w+0.34,0.20,0.42,MAT.wood1,0,h+0.02,-d/2-0.16,false);       // cornice under the parapet
-  box(w+0.7,0.16,2.6,MAT.wood1,0,h*0.62,-d/2-1.5,g);                 // awning
-  S.part(0.17,h*0.62,0.17,MAT.wood1,-w/2+0.3,h*0.31,-d/2-2.6);
-  S.part(0.17,h*0.62,0.17,MAT.wood1, w/2-0.3,h*0.31,-d/2-2.6);
-  if(rnd()<0.5) poster(g,(rnd()<0.5?-1:1)*(w/2-0.3),1.55,-d/2-2.69,0,0.72);
+  S.part(w+0.34,0.20,0.42,MAT.wood1,0,h+0.02,-d/2-0.16,false);       // cornice
+  if(style==='stepped'){                                             // a parapet in three tiers
+    S.part(w*0.40,fh-h,0.36,shell,0,(h+fh)/2,-d/2-0.14,false);
+    var t2=(fh-h)*0.70, t3=(fh-h)*0.42;
+    S.part(w*0.24,t2,0.36,shell,-w*0.32,h+t2/2,-d/2-0.14,false);
+    S.part(w*0.24,t2,0.36,shell, w*0.32,h+t2/2,-d/2-0.14,false);
+    S.part(w*0.16,t3,0.36,shell,-w*0.54,h+t3/2,-d/2-0.14,false);
+    S.part(w*0.16,t3,0.36,shell, w*0.54,h+t3/2,-d/2-0.14,false);
+  }else if(style==='gable'){                                         // a real pitched roof
+    var half=(w+0.5)/2, riseR=1.9, slope=Math.hypot(half,riseR), angR=Math.atan2(riseR,half);
+    var g1=box(slope,0.18,d+0.9,MAT.wood1,-half/2,h+riseR/2+0.10,0,g); g1.rotation.z= angR;
+    var g2=box(slope,0.18,d+0.9,MAT.wood1, half/2,h+riseR/2+0.10,0,g); g2.rotation.z=-angR;
+    hitables.push(g1); hitables.push(g2);
+    var shp=new THREE.Shape();
+    shp.moveTo(-half,0); shp.lineTo(half,0); shp.lineTo(0,riseR); shp.closePath();
+    var gg=new THREE.ExtrudeGeometry(shp,{depth:0.24,bevelEnabled:false});
+    var e1=new THREE.Mesh(gg,shell); e1.position.set(0,h+0.10,-d/2-0.24); g.add(e1);
+    var e2=new THREE.Mesh(gg,shell); e2.position.set(0,h+0.10,d/2); g.add(e2);
+    box(0.26,0.26,d+1.0,MAT.wood1,0,h+riseR+0.10,0,g);
+  }else if(style==='stone'){                                         // the bank
+    S.part(w+0.34,fh-h,0.44,shell,0,(h+fh)/2,-d/2-0.16,false);
+    S.part(w+0.70,0.26,0.58,shell,0,fh-0.13,-d/2-0.20,false);        // heavy cap
+    S.part(w+0.60,0.22,0.54,shell,0,h+0.30,-d/2-0.18,false);
+    for(i=0;i<9;i++) S.part(0.16,0.16,0.50,shell,-w*0.42+i*(w*0.105),h+0.52,-d/2-0.20,false);  // dentils
+    S.part(0.52,h,0.46,shell,-DOORW/2-0.55,h/2,-d/2-0.20,false);     // pilasters flanking the door
+    S.part(0.52,h,0.46,shell, DOORW/2+0.55,h/2,-d/2-0.20,false);
+    S.part(0.62,0.20,0.56,shell,-DOORW/2-0.55,h-0.10,-d/2-0.22,false);
+    S.part(0.62,0.20,0.56,shell, DOORW/2+0.55,h-0.10,-d/2-0.22,false);
+    for(i=0;i<5;i++){                                                // a fanlight arch over the door
+      var aw=DOORW+0.5-i*0.34;
+      S.part(aw,0.13,0.42,shell,0,DOORH+0.30+i*0.12,-d/2-0.18,false);
+    }
+    for(i=0;i<6;i++){                                                // quoins down the corners
+      var qy=0.5+i*(h/6);
+      S.part(0.44,0.36,0.40,shell,-w/2-0.10,qy,-d/2-0.16,false);
+      S.part(0.44,0.36,0.40,shell, w/2+0.10,qy,-d/2-0.16,false);
+    }
+  }else{
+    S.part(w+0.34,fh-h,0.36,shell,0,(h+fh)/2,-d/2-0.14,false);       // plain false front
+  }
+  if(style==='two'){
+    var by=h*0.52;                                                   // the balcony deck
+    box(w+0.8,0.18,2.9,MAT.wood1,0,by,-d/2-1.65,g);
+    for(i=0;i<4;i++) S.part(0.15,by,0.15,MAT.wood1,-w/2+0.4+i*((w-0.8)/3),by/2,-d/2-2.85,false);
+    for(i=0;i<4;i++) S.part(0.13,h-by-0.3,0.13,MAT.wood1,-w/2+0.4+i*((w-0.8)/3),by+(h-by)/2,-d/2-2.85,false);
+    box(w+0.9,0.16,3.0,MAT.wood1,0,h-0.15,-d/2-1.70,g);              // roof over the gallery
+    box(w+0.8,0.10,0.10,MAT.wood1,0,by+1.05,-d/2-3.05,g);            // rail
+    box(w+0.8,0.08,0.08,MAT.wood1,0,by+0.58,-d/2-3.05,g);
+    for(i=0;i<18;i++) box(0.055,0.95,0.055,MAT.wood1,-w/2-0.3+i*((w+0.6)/17),by+0.55,-d/2-3.05,g);
+    for(i=-1;i<=1;i+=2){                                             // second-floor windows
+      var wx=i*(w*0.24);
+      S.part(1.20,1.35,0.10,MAT.pane,wx,by+1.45,-d/2-0.03,false);
+      S.part(0.12,1.55,0.14,MAT.wood1,wx-0.66,by+1.45,-d/2-0.05,false);
+      S.part(0.12,1.55,0.14,MAT.wood1,wx+0.66,by+1.45,-d/2-0.05,false);
+      S.part(1.44,0.13,0.16,MAT.wood1,wx,by+2.25,-d/2-0.05,false);
+      S.part(1.44,0.13,0.20,MAT.wood1,wx,by+0.66,-d/2-0.06,false);
+      S.part(0.07,1.35,0.06,MAT.wood1,wx,by+1.45,-d/2-0.06,false);
+    }
+  }else{
+    box(w+0.7,0.16,2.6,MAT.wood1,0,h*0.62,-d/2-1.5,g);               // awning
+  }
+  if(style!=='two'){
+    S.part(0.17,h*0.62,0.17,MAT.wood1,-w/2+0.3,h*0.31,-d/2-2.6);
+    S.part(0.17,h*0.62,0.17,MAT.wood1, w/2-0.3,h*0.31,-d/2-2.6);
+    if(rnd()<0.5) poster(g,(rnd()<0.5?-1:1)*(w/2-0.3),1.55,-d/2-2.69,0,0.72);
+  }
   var bw=box(w+0.9,0.2,3.0,MAT.wood1,0,0.1,-d/2-1.6,g); bw.castShadow=false;
 
   if(lowFront) S.blocker(0,-d/2-0.14,w+0.34,0.36,fh);   // the roof parapet, once you are up there
@@ -1296,51 +1379,78 @@ function dressInterior(S,kind,w,d,h){
 }
 
 /* every door on the street opens */
+/* name, interior, width, facade style, plank colour */
 var TOWN_S=[
-  ['OCCIDENTAL SALOON','saloon0',13.5],['DRY GOODS','store',11.5],['HOTEL DRURY','hotel',12],
-  ['BARBER','barber',10],['LIVERY & FEED','livery',12],['BULLHEAD SALOON','saloon2',12],['BLACKSMITH','forge',11]
+  ['OCCIDENTAL SALOON','saloon0',13.5,'front',0],['DRY GOODS','store',11.5,'stepped',1],
+  ['HOTEL DRURY','hotel',12,'two',4],['BARBER','barber',10,'gable',5],
+  ['LIVERY & FEED','livery',12,'gable',2],['BULLHEAD SALOON','saloon2',12,'front',6],
+  ['BLACKSMITH','forge',11,'gable',3]
 ];
 var TOWN_N=[
-  ['BANK OF CIMARRON','bank',12.5],['J. PRINE UNDERTAKER','undertaker',11],['ASSAY OFFICE','office',10.5],
-  ['WESTERN UNION','telegraph',10],['THE PALACE','saloon1',12],['MILLINERY','millinery',10],['DOC MERRIWEATHER','doctor',10.5]
+  ['BANK OF CIMARRON','bank',12.5,'stone',0],['J. PRINE UNDERTAKER','undertaker',11,'stepped',2],
+  ['ASSAY OFFICE','office',10.5,'front',1],['WESTERN UNION','telegraph',10,'gable',6],
+  ['THE PALACE','saloon1',12,'two',3],['MILLINERY','millinery',10,'stepped',5],
+  ['DOC MERRIWEATHER','doctor',10.5,'front',4]
 ];
 var PERCH=null;
 function saloonRoof(bx,bz,w,d,h){
-  var rY=h+0.09;
+  var rY=h+0.09, i;
   PERCH={x:bx-1.6,z:bz-d/2+1.25,y:rY,yaw:0};
   platforms.push({x0:bx-w/2-0.2,x1:bx+w/2+0.2,z0:bz-d/2-0.1,z1:bz+d/2+0.9,y:rY});
-  var sz=bz+d/2+1.35, x0=bx-3.1, i, sy;
-  for(i=0;i<14;i++){                                  // stair up the back
-    sy=(i+1)*(rY/14);
-    box(0.48,0.16,1.30,MAT.wood1,x0+i*0.46,sy-0.08,sz);
-    platforms.push({x0:x0+i*0.46-0.24,x1:x0+i*0.46+0.24,z0:sz-0.65,z1:sz+0.65,y:sy});
-    if(i%3===0){
-      box(0.10,1.05,0.10,MAT.wood1,x0+i*0.46,sy+0.52,sz+0.60);
-      box(0.10,1.05,0.10,MAT.wood1,x0+i*0.46,sy+0.52,sz-0.60);
-    }
+
+  var N=14, run=0.48, rise=rY/N;
+  var sz=bz+d/2+1.55;                      // centre line of the flight
+  var x0=bx-3.6, span=N*run;
+  var len=Math.sqrt(span*span+rY*rY), ang=Math.atan2(rY,span);
+  var midx=x0+span/2;
+
+  for(var sd=-1;sd<=1;sd+=2){              // the two stringers carrying the treads
+    var str=box(len+0.30,0.30,0.11,MAT.wood1,midx,rY/2-0.10,sz+sd*0.66);
+    str.rotation.z=ang;
   }
-  var lx=x0+13.5*0.46;
-  box(1.6,0.16,2.9,MAT.wood1,lx,rY-0.08,sz-0.75);     // landing onto the roof
-  platforms.push({x0:lx-0.8,x1:lx+0.8,z0:sz-2.2,z1:sz+0.7,y:rY});
-  box(0.10,1.05,0.10,MAT.wood1,lx+0.7,rY+0.52,sz+0.55);
-  box(1.6,0.10,0.10,MAT.wood1,lx,rY+1.0,sz+0.60);
-  var sign=box(1.5,0.5,0.08,MAT.wood1,lx,rY+1.0,sz-2.0);
-  sign.visible=false;
+  for(i=0;i<N;i++){                        // tread and riser for every step
+    var sy=(i+1)*rise;
+    box(run+0.07,0.075,1.30,MAT.wood1,x0+i*run+run/2,sy-0.037,sz);
+    box(0.055,rise,1.28,MAT.wood1,x0+i*run,sy-rise/2,sz);
+    platforms.push({x0:x0+i*run-0.06,x1:x0+i*run+run+0.06,z0:sz-0.65,z1:sz+0.65,y:sy});
+  }
+  for(sd=-1;sd<=1;sd+=2){                  // newel posts and a raked handrail
+    for(i=0;i<=4;i++){
+      var px=x0+i*(span/4), py=(px-x0)/span*rY;
+      box(0.09,1.02,0.09,MAT.wood1,px,py+0.51,sz+sd*0.66);
+    }
+    var rail=box(len+0.30,0.085,0.085,MAT.wood1,midx,rY/2+0.94,sz+sd*0.66);
+    rail.rotation.z=ang;
+    var mid=box(len+0.30,0.06,0.06,MAT.wood1,midx,rY/2+0.50,sz+sd*0.66);
+    mid.rotation.z=ang;
+  }
+
+  // landing: a proper deck bridging the top step onto the roof
+  var lx=x0+span+0.75;
+  box(1.9,0.16,3.10,MAT.wood1,lx,rY-0.08,sz-0.70);
+  platforms.push({x0:lx-0.95,x1:lx+0.95,z0:sz-2.25,z1:sz+0.85,y:rY});
+  for(i=0;i<4;i++) box(0.12,rY,0.12,MAT.wood1,lx+(i<2?-0.8:0.8),rY/2,sz+(i%2?0.72:-1.45));
+  box(0.09,1.02,0.09,MAT.wood1,lx+0.88,rY+0.51,sz+0.72);
+  box(0.09,1.02,0.09,MAT.wood1,lx+0.88,rY+0.51,sz-2.05);
+  box(0.09,1.02,0.09,MAT.wood1,lx-0.88,rY+0.51,sz+0.72);
+  box(0.16,0.09,2.95,MAT.wood1,lx+0.88,rY+0.98,sz-0.68);
+  box(1.85,0.09,0.09,MAT.wood1,lx,rY+0.98,sz+0.76);
 }
 (function buildTown(){
   var xs=-48,i,e;
   for(i=0;i<TOWN_S.length;i++){
     e=TOWN_S[i];
-    var bd=rr(9.5,11), bh=rr(4.7,5.5), bx=xs+e[2]/2, bz=14+bd/2;
+    var bd=rr(9.5,11), bh=(e[3]==='two')?7.6:rr(4.7,5.5), bx=xs+e[2]/2, bz=14+bd/2;
     if(i===0) bh=5.6;
-    building(bx,bz,0,e[2],bd,bh,e[0],e[1],i===0);
+    building(bx,bz,0,e[2],bd,bh,e[0],e[1],i===0,e[3],e[4]);
     if(i===0) saloonRoof(bx,bz,e[2],bd,bh);
     xs+=e[2]+rr(1.3,2.6);
   }
   xs=-46;
   for(i=0;i<TOWN_N.length;i++){
     e=TOWN_N[i];
-    building(xs+e[2]/2,-14-rr(9.5,11)/2,Math.PI,e[2],rr(9.5,11),rr(4.7,5.5),e[0],e[1]);
+    var nd=rr(9.5,11), nh=(e[3]==='two')?7.6:rr(4.7,5.5);
+    building(xs+e[2]/2,-14-nd/2,Math.PI,e[2],nd,nh,e[0],e[1],false,e[3],e[4]);
     xs+=e[2]+rr(1.3,2.6);
   }
 })();
@@ -1585,15 +1695,17 @@ function skull(x,z){
     if(Math.abs(cz)<28&&cx>-92&&cx<56) continue;      // not on the street, not in the church yard
     cactus(cx,cz); cn++;
   }
-  for(i=0;i<9;i++){                                   // a few landmark outcrops, well clear of town
-    var la=rr(0,TAU), lr=rr(58,80);
-    rock(Math.cos(la)*lr,Math.sin(la)*lr,rr(1.5,2.6),MAT.cliff);
+  for(i=0;i<5;i++){                                   // a few landmark outcrops, well clear of town
+    var la=rr(0,TAU), lr=rr(58,78);
+    rock(Math.cos(la)*lr,Math.sin(la)*lr,rr(1.8,2.8),MAT.cliff);
   }
   for(i=0;i<4;i++) skull(rr(-70,70),rr(-70,70));
   // boulders piled at the foot of the cliffs so the edge of the world reads as rock
-  for(i=0;i<52;i++){
-    var a2=rr(0,TAU), r2=rr(WORLD_R+1,WORLD_R+12);
-    rock(Math.cos(a2)*r2,Math.sin(a2)*r2,rr(1.6,4.4),MAT.cliff,true);
+  for(i=0;i<16;i++){                                 // scree, in a few clumps rather than a scatter
+    var a2=rr(0,TAU), r2=rr(WORLD_R+2,WORLD_R+9);
+    var cbx=Math.cos(a2)*r2, cbz=Math.sin(a2)*r2;
+    rock(cbx,cbz,rr(2.4,4.6),MAT.cliff,true);
+    if(rnd()<0.6) rock(cbx+rr(-3,3),cbz+rr(-3,3),rr(1.2,2.2),MAT.cliff,true);
   }
 })();
 
@@ -1962,10 +2074,19 @@ function Outlaw(x,z,name){
   var hatm=new THREE.MeshLambertMaterial({color:pick([0x2c241c,0x3d3226,0x4a3a28])});
   function bx(w,h,d,m,px,py,pz,p){var q=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);q.position.set(px,py,pz);q.castShadow=true;(p||g).add(q);return q;}
 
-  var legL=bx(0.20,0.86,0.24,shirt,-0.15,0.43,0);
-  var legR=bx(0.20,0.86,0.24,shirt, 0.15,0.43,0);
-  legL.geometry.translate(0,-0.43,0); legL.position.y=0.86;
-  legR.geometry.translate(0,-0.43,0); legR.position.y=0.86;
+  // jointed legs: hip pivot, knee pivot, foot - a straight box cannot run
+  function limb(px){
+    var hipG=new THREE.Group(); hipG.position.set(px,0.95,0); g.add(hipG);
+    var up=new THREE.Mesh(new THREE.BoxGeometry(0.20,0.46,0.22),shirt);
+    up.position.y=-0.23; up.castShadow=true; hipG.add(up);
+    var kneeG=new THREE.Group(); kneeG.position.y=-0.46; hipG.add(kneeG);
+    var lo=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.44,0.18),shirt);
+    lo.position.y=-0.22; lo.castShadow=true; kneeG.add(lo);
+    var ft=new THREE.Mesh(new THREE.BoxGeometry(0.19,0.10,0.29),MAT.dark);
+    ft.position.set(0,-0.49,0.05); ft.castShadow=true; kneeG.add(ft);
+    return {hip:hipG,knee:kneeG};
+  }
+  var legL=limb(-0.15), legR=limb(0.15);
   bx(0.62,0.52,0.40,coat,0,1.02,0);                                   // coat skirt
   var torso=bx(0.58,0.62,0.34,coat,0,1.50,0);
   torso.userData={owner:null,part:'body'};
@@ -1986,7 +2107,7 @@ function Outlaw(x,z,name){
   var e={
     g:g,name:name,hp:100,dead:false,state:'walk',
     x:x,z:z,yaw:0,phase:rr(0,TAU),fireCd:rr(0.8,2.6),strafe:rr(-1,1)>0?1:-1,strafeCd:rr(1,3),
-    legL:legL,legR:legR,armL:armL,armR:armR,torso:torso,head:head,fallT:0,hitT:0,speed:rr(2.4,3.3)
+    legL:legL,legR:legR,armL:armL,armR:armR,torso:torso,head:head,fallT:0,hitT:0,speed:rr(2.6,3.5)
   };
   torso.userData.owner=e; head.userData.owner=e;
   g.position.set(x,terrainH(x,z),z);
@@ -2056,7 +2177,8 @@ function Rifleman(x,y,z,yaw,name){
     g:g,name:name,kind:'sniper',hp:100,dead:false,state:'aim',
     x:x,y:y,z:z,yaw:yaw,rifle:rifle,glint:glint,glintM:glint.material,
     fireCd:4.2,charge:0,phase:0,strafe:1,strafeCd:9,hitT:0,fallT:0,speed:0,
-    legL:{rotation:{x:0}},legR:{rotation:{x:0}},armL:armL,armR:armR,torso:torso,head:head
+    legL:{hip:{rotation:{x:0}},knee:{rotation:{x:0}}},
+    legR:{hip:{rotation:{x:0}},knee:{rotation:{x:0}}},armL:armL,armR:armR,torso:torso,head:head
   };
   torso.userData.owner=e; head.userData.owner=e;
   hitables.push(torso); hitables.push(head);
@@ -2572,11 +2694,12 @@ function updatePlayer(dt){
       say('1 Colt, 2 rifle, hold right mouse to aim',6);
     }
   }
-  if(P.moving>0.1&&P.onGround) P.bob+=dt*(run?13:8.4);
-  var bobY=Math.sin(P.bob)*0.045*P.moving, bobX=Math.cos(P.bob*0.5)*0.03*P.moving;
+  if(P.moving>0.1&&P.onGround) P.bob+=dt*(run?13:8.4);   // still drives the weapon, not the view
 
-  camera.position.set(P.x+bobX*0.2,P.y+EYE+bobY,P.z);
-  camera.rotation.set(P.pitch,P.yaw,Math.sin(P.bob*0.5)*0.012*P.moving,'YXZ');
+  // The view is held level and still. Head bob and camera roll read as
+  // gimmickry rather than motion, so neither is applied here.
+  camera.position.set(P.x,P.y+EYE,P.z);
+  camera.rotation.set(P.pitch,P.yaw,0,'YXZ');
 }
 
 /* --- the viewmodel --- */
@@ -2770,28 +2893,38 @@ function updateEnemies(dt){
     e.g.rotation.y=Math.atan2(dx,dz)+Math.PI;
     if(e.hitT>0){ e.hitT-=dt; e.g.position.x=e.x+rr(-0.03,0.03); }
 
-    var wantMove=(!los||d>17);
+    /* A run cycle on jointed legs: the hip swings, the knee folds on the
+       recovery stroke, the arms counter-swing and the body rises on each
+       step. A rigid leg swinging from the hip reads as a shop dummy. */
+    var wantMove=(!los||d>17), lift=0;
     if(wantMove){
-      var s=e.speed*(e.alerted?1.25:1);
+      var s=e.speed*(e.alerted?1.3:1);
       var nx=e.x+dx/d*s*dt, nz=e.z+dz/d*s*dt;
-      var c=collide(nx,nz,0.42); e.x=c[0]; e.z=c[1];
-      e.phase+=dt*s*2.6;
-      e.legL.rotation.x=Math.sin(e.phase)*0.72;
-      e.legR.rotation.x=-Math.sin(e.phase)*0.72;
-      e.armL.rotation.x=-Math.sin(e.phase)*0.5;
-      e.armR.rotation.x=Math.sin(e.phase)*0.4;
+      var c=collide(nx,nz,0.42,0); e.x=c[0]; e.z=c[1];
+      e.phase+=dt*s*3.0;
+      var amp=clamp(s/3.0,0.55,1.30);
+      e.legL.hip.rotation.x  = Math.sin(e.phase)*0.88*amp;
+      e.legR.hip.rotation.x  =-Math.sin(e.phase)*0.88*amp;
+      e.legL.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95))*1.05*amp;
+      e.legR.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95+Math.PI))*1.05*amp;
+      e.armL.rotation.x=-Math.sin(e.phase)*0.68*amp;
+      e.armR.rotation.x= Math.sin(e.phase)*0.52*amp;
+      lift=Math.abs(Math.sin(e.phase))*0.055*amp;
     }else{
       e.strafeCd-=dt;
       if(e.strafeCd<=0){ e.strafe*=-1; e.strafeCd=rr(1.2,2.8); }
       var sx=-dz/d*e.strafe*1.5, sz=dx/d*e.strafe*1.5;
-      var c2=collide(e.x+sx*dt,e.z+sz*dt,0.42); e.x=c2[0]; e.z=c2[1];
-      e.phase+=dt*3.4;
-      e.legL.rotation.x=Math.sin(e.phase)*0.28;
-      e.legR.rotation.x=-Math.sin(e.phase)*0.28;
+      var c2=collide(e.x+sx*dt,e.z+sz*dt,0.42,0); e.x=c2[0]; e.z=c2[1];
+      e.phase+=dt*3.6;
+      e.legL.hip.rotation.x  = Math.sin(e.phase)*0.30;
+      e.legR.hip.rotation.x  =-Math.sin(e.phase)*0.30;
+      e.legL.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95))*0.34;
+      e.legR.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95+Math.PI))*0.34;
       e.armL.rotation.x=damp(e.armL.rotation.x,-0.15,6,dt);
       e.armR.rotation.x=damp(e.armR.rotation.x,-1.42,9,dt);
+      lift=Math.abs(Math.sin(e.phase))*0.018;
     }
-    p.x=e.x; p.z=e.z; p.y=terrainH(e.x,e.z);
+    p.x=e.x; p.z=e.z; p.y=terrainH(e.x,e.z)+lift;
 
     if(los&&d<30){
       e.fireCd-=dt*(e.alerted?1.2:1);
@@ -2901,9 +3034,8 @@ function updateCar(dt){
     if(off> 1.9) off= 1.9; if(off<-1.9) off=-1.9;            // you can only crane so far
     off=damp(off,0,0.7,dt);
     P.yaw=aligned+off;
-    var jolt=Math.sin(car.gait*2)*0.022*amp+Math.sin(car.gait*3.1)*0.010*amp;
-    camera.position.set(car.x+Math.sin(car.yaw)*0.5,gy+2.16+jolt,car.z+Math.cos(car.yaw)*0.5);
-    camera.rotation.set(P.pitch+jolt*0.35,P.yaw,car.g.rotation.z*0.6+Math.sin(car.gait)*0.010*amp,'YXZ');
+    camera.position.set(car.x+Math.sin(car.yaw)*0.5,gy+2.16,car.z+Math.cos(car.yaw)*0.5);
+    camera.rotation.set(P.pitch,P.yaw,0,'YXZ');   // level on the seat as well
   }
 }
 
