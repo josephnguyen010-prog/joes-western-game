@@ -484,6 +484,35 @@ function floorAt(x,z,feet){
   }
   return h;
 }
+/* The wagon's figure of eight. It lives up here because the prop scatter
+   needs it: cactus and rock are placed everywhere except along this line. */
+var ROUTE=[
+  [-44,  5],  //  0  street, west end, south lane
+  [ 44,  5],  //  1  EASTBOUND down main street
+  [ 58, -9],  //  2  swing north at the east end   -- the crossing is on this leg
+  [ 50,-39],  //  3
+  [-50,-39],  //  4  westbound behind the north row
+  [-52,-13],  //  5  turn south into the gap by the church
+  [-52, 13],  //  6  through the gap
+  [-50, 39],  //  7
+  [ 50, 39],  //  8  eastbound behind the south row
+  [ 58,  9],  //  9  swing north at the east end   -- and crosses leg 2 here
+  [ 44, -5],  // 10  street, east end, north lane
+  [-44, -5]   // 11  WESTBOUND back down main street
+];
+function segDist(px,pz,ax,az,bx,bz){
+  var dx=bx-ax, dz=bz-az, l2=dx*dx+dz*dz;
+  var t=l2>0?clamp(((px-ax)*dx+(pz-az)*dz)/l2,0,1):0;
+  var qx=ax+t*dx-px, qz=az+t*dz-pz;
+  return Math.sqrt(qx*qx+qz*qz);
+}
+function onRoute(x,z,m){
+  for(var i=0;i<ROUTE.length;i++){
+    var a=ROUTE[i], b=ROUTE[(i+1)%ROUTE.length];
+    if(segDist(x,z,a[0],a[1],b[0],b[1])<m) return true;
+  }
+  return false;
+}
 function inPortal(x,z){
   for(var i=0;i<portals.length;i++){
     var r=portals[i];
@@ -1450,11 +1479,14 @@ function skull(x,z){
     var cx=rr(-84,84),cz=rr(-84,84);
     if(Math.hypot(cx,cz)>84) continue;
     if(Math.abs(cz)<28&&cx>-92&&cx<56) continue;      // not on the street, not in the church yard
+    if(onRoute(cx,cz,7)) continue;                    // and not in the wagon's way
     cactus(cx,cz); cn++;
   }
   for(i=0;i<5;i++){                                   // a few landmark outcrops, well clear of town
     var la=rr(0,TAU), lr=rr(58,78);
-    rock(Math.cos(la)*lr,Math.sin(la)*lr,rr(1.8,2.8),MAT.cliff);
+    var lox=Math.cos(la)*lr, loz=Math.sin(la)*lr;
+    if(onRoute(lox,loz,9)) continue;
+    rock(lox,loz,rr(1.8,2.8),MAT.cliff);
   }
   for(i=0;i<4;i++) skull(rr(-70,70),rr(-70,70));
   // boulders piled at the foot of the cliffs so the edge of the world reads as rock

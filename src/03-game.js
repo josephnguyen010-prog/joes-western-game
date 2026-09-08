@@ -298,7 +298,7 @@ function reloadStep(dt){
 /* ============================================================
    15. collision and the player
    ============================================================ */
-function collide(px,pz,r,feet){
+function collide(px,pz,r,feet,bigOnly){
   if(feet===undefined) feet=-999;
   if(inPortal(px,pz)){                       // a doorway is never blocked
     var pd=Math.sqrt(px*px+pz*pz), pl=WORLD_R-r;
@@ -308,6 +308,9 @@ function collide(px,pz,r,feet){
   for(var i=0;i<blockers.length;i++){
     var b=blockers[i];
     if(b.top<feet+0.15) continue;            // you are standing above it
+    // A loaded wagon goes over scrub, barrels and cactus without noticing.
+    // Only walls and the like are worth stopping for.
+    if(bigOnly&&(b.x1-b.x0)<2.5&&(b.z1-b.z0)<2.5) continue;
     if(px>b.x0-r&&px<b.x1+r&&pz>b.z0-r&&pz<b.z1+r){
       var d1=(b.x1+r)-px, d0=px-(b.x0-r), d3=(b.z1+r)-pz, d2=pz-(b.z0-r);
       var m=Math.min(d1,d0,d3,d2);
@@ -634,28 +637,6 @@ function updateEnemies(dt){
    ============================================================ */
 /* The stage runs a circuit of the town on its own. You flag it down and
    ride in the bed; the driver does the work. */
-/* A figure of eight laid over the town, with a row of buildings sitting
-   inside each lobe. Main street is the middle of the eight, run once in
-   each direction on separate lanes; the north row is enclosed by the top
-   loop and the south row by the bottom one. The two legs cross at about
-   (51, 0), just off the east end of the street. The west turn threads the
-   gap between the last storefront and the churchyard; the back legs at
-   z = +/-39 clear the water tower and the windmill. */
-var ROUTE=[
-  [-44,  5],  //  0  street, west end, south lane
-  [ 44,  5],  //  1  EASTBOUND down main street
-  [ 58, -9],  //  2  swing north at the east end   -- crossing is on this leg
-  [ 50,-39],  //  3
-  [-50,-39],  //  4  westbound behind the north row
-  [-52,-13],  //  5  turn south into the gap by the church
-  [-52, 13],  //  6  through the gap
-  [-50, 39],  //  7
-  [ 50, 39],  //  8  eastbound behind the south row
-  [ 58,  9],  //  9  swing north at the east end   -- and crosses leg 2 here
-  [ 44, -5],  // 10  street, east end, north lane
-  [-44, -5]   // 11  WESTBOUND back down main street
-];
-
 function toggleCar(){
   if(GAME.state!=='play')return;
   if(P.inCar){
@@ -672,35 +653,52 @@ function toggleCar(){
 
 function updateCar(dt){
   // --- the driver picks his line toward the next waypoint ---
-  var wp=ROUTE[car.wp];
+  var wp=ROUTE[car.wp], nw=ROUTE[(car.wp+1)%ROUTE.length];
   var tx=wp[0]-car.x, tz=wp[1]-car.z, td=Math.sqrt(tx*tx+tz*tz);
-  if(td<7.0) car.wp=(car.wp+1)%ROUTE.length;
+  if(td<8){
+    car.wp=(car.wp+1)%ROUTE.length;
+    wp=ROUTE[car.wp]; nw=ROUTE[(car.wp+1)%ROUTE.length];
+    tx=wp[0]-car.x; tz=wp[1]-car.z; td=Math.sqrt(tx*tx+tz*tz);
+  }
   var off=angWrap(Math.atan2(tx,tz)-car.yaw);
-  car.steer=damp(car.steer,clamp(off*1.9,-1,1),7,dt);
-  car.hurry=damp(car.hurry,1,0.5,dt);
 
-  var want=(Math.abs(off)>0.9?3.6:(Math.abs(off)>0.4?6.0:9.8))*car.hurry;
+  /* He slows for the corner he can see coming, not the one he is already in:
+     the angle between this leg and the next, weighted by how close he is. */
+  var corner=Math.abs(angWrap(Math.atan2(nw[0]-wp[0],nw[1]-wp[1])-Math.atan2(tx,tz)));
+  var ease=Math.max(clamp((18-td)/12,0,1)*clamp(corner/1.3,0,1),clamp(Math.abs(off),0,1));
+  car.hurry=damp(car.hurry,1,0.5,dt);
+  var want=lerp(10.0,3.8,ease)*car.hurry;
+
+  // backing out of a jam
+  if(car.rev>0){
+    car.rev-=dt; want=-3.2;
+    if(car.rev<=0){ car.stuck=0; car.wp=(car.wp+1)%ROUTE.length; }
+  }
+  car.steer=damp(car.steer,car.rev>0?-car.escape:clamp(off*1.9,-1,1),7,dt);
+
   var s=car.speed;
   s+=clamp(want-s,-1,1)*7.0*dt;
   s-=s*0.22*dt;
-  s=clamp(s,0,15);
+  s=clamp(s,-4,15);
   car.speed=s;
 
-  var grip=clamp(s/5,0,1);
-  car.yaw+=car.steer*1.75*grip*dt;
+  // A floor under the grip, so a wagon pinned against something can still
+  // turn its way out; without it, stopped meant stuck forever.
+  var grip=clamp(Math.abs(s)/5,0.30,1);
+  car.yaw+=car.steer*1.75*grip*(s<0?-1:1)*dt;
 
   var nx=car.x+Math.sin(car.yaw)*s*dt, nz=car.z+Math.cos(car.yaw)*s*dt;
-  var c=collide(nx,nz,1.6,0);
+  var c=collide(nx,nz,1.6,0,true);
   var bumped=Math.abs(c[0]-nx)>0.001||Math.abs(c[1]-nz)>0.001;
   var hx=c[0]+Math.sin(car.yaw)*3.7, hz=c[1]+Math.cos(car.yaw)*3.7;   // the team, out front
-  var hc=collide(hx,hz,1.0,0);
+  var hc=collide(hx,hz,1.0,0,true);
   if(Math.abs(hc[0]-hx)>0.001||Math.abs(hc[1]-hz)>0.001){
     c[0]+=(hc[0]-hx)*0.9; c[1]+=(hc[1]-hz)*0.9; bumped=true;
   }
-  if(bumped){
-    car.speed*=0.55; car.stuck+=dt;
-    if(car.stuck>1.6){ car.wp=(car.wp+1)%ROUTE.length; car.stuck=0; }   // give up on that line
-  }else car.stuck=Math.max(0,car.stuck-dt*0.5);
+  if(bumped&&car.rev<=0){
+    car.speed*=0.5; car.stuck+=dt;
+    if(car.stuck>0.7){ car.rev=1.3; car.escape=(off<0?-1:1); }
+  }else car.stuck=Math.max(0,car.stuck-dt*1.6);
   car.x=c[0]; car.z=c[1];
 
   var gy=terrainH(car.x,car.z);
@@ -717,8 +715,8 @@ function updateCar(dt){
   }
 
   // the team trots on diagonal pairs, faster the harder he pushes them
-  car.gait+=dt*(1.7+s*0.80);
-  var amp=clamp(s/5.5,0.10,1);
+  car.gait+=dt*(1.7+Math.abs(s)*0.80);
+  var amp=clamp(Math.abs(s)/5.5,0.10,1);
   for(var hi=0;hi<car.horses.length;hi++){
     var H=car.horses[hi], ph=car.gait+hi*0.62;
     for(var L=0;L<4;L++){
@@ -730,11 +728,11 @@ function updateCar(dt){
     H.neck.rotation.x=H.neckBase+Math.sin(ph*2)*0.06*amp;
     H.tail.rotation.z=Math.sin(car.gait*0.8+hi)*0.14;
   }
-  if(s>0.5){
-    car.beat-=dt*(1.7+s*0.80)/Math.PI;
-    if(car.beat<=0){ AU.clop(clamp(s/9,0.25,1)); car.beat=1; }
+  if(Math.abs(s)>0.5){
+    car.beat-=dt*(1.7+Math.abs(s)*0.80)/Math.PI;
+    if(car.beat<=0){ AU.clop(clamp(Math.abs(s)/9,0.25,1)); car.beat=1; }
   }
-  if(s>2&&rnd()<dt*12)
+  if(Math.abs(s)>2&&rnd()<dt*12)
     FX.puff(new THREE.Vector3(car.x-Math.sin(car.yaw)*1.6,gy+0.2,car.z-Math.cos(car.yaw)*1.6),1,0xC2A177,0.32,0.6,0.5);
   if(s>5){                                        // he does not slow down for anybody
     var rx2=car.x+Math.sin(car.yaw)*3.4, rz2=car.z+Math.cos(car.yaw)*3.4;
@@ -749,7 +747,7 @@ function updateCar(dt){
 
   if(P.inCar){                                    // sitting in the bed, behind the driver
     P.x=car.x; P.z=car.z; P.y=gy;
-    P.moving=clamp(s/8,0,1);
+    P.moving=clamp(Math.abs(s)/8,0,1);
     var aligned=Math.PI-car.yaw, look=angWrap(P.yaw-aligned);
     if(look> 2.4) look= 2.4; if(look<-2.4) look=-2.4;
     P.yaw=aligned+look;
@@ -988,7 +986,7 @@ function beginRun(){
   for(var dI=0;dI<doors.length;dI++){ doors[dI].a=0; doors[dI].v=0; doors[dI].hL.rotation.y=0; doors[dI].hR.rotation.y=0; }
   lastWeapon='';
   car.x=25; car.z=-39; car.yaw=-Math.PI/2; car.speed=6; car.steer=0; car.occupied=false;
-  car.wp=4; car.hurry=1; car.stuck=0; P.cylIndex=0;   // out on the back leg, westbound
+  car.wp=4; car.hurry=1; car.stuck=0; car.rev=0; P.cylIndex=0;   // out on the back leg, westbound
   clearEnemies();
   lastAmmo=lastKills=lastHp=lastLeft=-1; lastClock='';
   ui.feed.innerHTML='';

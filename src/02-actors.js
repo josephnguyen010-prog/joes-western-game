@@ -565,5 +565,5 @@ var car=(function(){
                                      hat:'slouch',seated:1,reins:1});
   return {g:g,wheels:wheels,pivots:pivots,horses:horses,driver:driver,
           x:25,z:-39,yaw:-Math.PI/2,speed:6,steer:0,occupied:false,gait:0,beat:1,
-          wp:4,hurry:1,stuck:0};
+          wp:4,hurry:1,stuck:0,rev:0,escape:1};
 })();
