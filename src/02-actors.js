@@ -556,12 +556,14 @@ var car=(function(){
     g.add(ln); reins.push(ln);
   }
 
-  g.position.set(14,terrainH(14,6.5),6.5); g.rotation.y=-0.5;
+  // starts out on the back leg behind the north row, heading west, so it
+  // comes round onto main street in its own time rather than sitting there
+  g.position.set(25,terrainH(25,-39),-39); g.rotation.y=-Math.PI/2;
   world.add(g);
   // the driver, sitting the seat with the lines in both hands
   var driver=person(g,0,0.99,0.62,0,{coat:0x4C3E2E,shirt:0xCBBEA4,vest:0x3A3128,
                                      hat:'slouch',seated:1,reins:1});
   return {g:g,wheels:wheels,pivots:pivots,horses:horses,driver:driver,
-          x:14,z:6.5,yaw:-0.5,speed:0,steer:0,occupied:false,gait:0,beat:1,
-          wp:0,hurry:1,stuck:0};
+          x:25,z:-39,yaw:-Math.PI/2,speed:6,steer:0,occupied:false,gait:0,beat:1,
+          wp:4,hurry:1,stuck:0};
 })();

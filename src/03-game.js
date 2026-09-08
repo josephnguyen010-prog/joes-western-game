@@ -987,8 +987,8 @@ function beginRun(){
   ui.pause.classList.add('gone'); $('fullKeys').hidden=true;
   for(var dI=0;dI<doors.length;dI++){ doors[dI].a=0; doors[dI].v=0; doors[dI].hL.rotation.y=0; doors[dI].hR.rotation.y=0; }
   lastWeapon='';
-  car.x=14; car.z=6.5; car.yaw=-0.5; car.speed=0; car.steer=0; car.occupied=false;
-  car.wp=0; car.hurry=1; car.stuck=0; P.cylIndex=0;
+  car.x=25; car.z=-39; car.yaw=-Math.PI/2; car.speed=6; car.steer=0; car.occupied=false;
+  car.wp=4; car.hurry=1; car.stuck=0; P.cylIndex=0;   // out on the back leg, westbound
   clearEnemies();
   lastAmmo=lastKills=lastHp=lastLeft=-1; lastClock='';
   ui.feed.innerHTML='';
