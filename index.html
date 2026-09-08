@@ -1478,7 +1478,7 @@ function saloonRoof(bx,bz,w,d,h){
 
 /* --- the church: nave, gabled roof, bell tower over the door, facing the street --- */
 (function church(){
-  var CX=-66, CZ=0, FACE=-Math.PI/2;      // front faces east, down the street
+  var CX=-70, CZ=0, FACE=-Math.PI/2;      // front faces east, down the street
   var W=11, D=16, H=6.4, RISE=3.6;
   var S=Structure(CX,CZ,FACE), g=S.g;
   var mat=PLANKS[3], inMat=mat.clone(); inMat.emissive=new THREE.Color(0x160f09);
@@ -2991,7 +2991,27 @@ function updateEnemies(dt){
    ============================================================ */
 /* The stage runs a circuit of the town on its own. You flag it down and
    ride in the bed; the driver does the work. */
-var ROUTE=[[44,0],[-44,0],[-58,-14],[-58,-38],[10,-46],[46,-34],[54,-10]];
+/* A figure of eight laid over the town, with a row of buildings sitting
+   inside each lobe. Main street is the middle of the eight, run once in
+   each direction on separate lanes; the north row is enclosed by the top
+   loop and the south row by the bottom one. The two legs cross at about
+   (51, 0), just off the east end of the street. The west turn threads the
+   gap between the last storefront and the churchyard; the back legs at
+   z = +/-39 clear the water tower and the windmill. */
+var ROUTE=[
+  [-44,  5],  //  0  street, west end, south lane
+  [ 44,  5],  //  1  EASTBOUND down main street
+  [ 58, -9],  //  2  swing north at the east end   -- crossing is on this leg
+  [ 50,-39],  //  3
+  [-50,-39],  //  4  westbound behind the north row
+  [-52,-13],  //  5  turn south into the gap by the church
+  [-52, 13],  //  6  through the gap
+  [-50, 39],  //  7
+  [ 50, 39],  //  8  eastbound behind the south row
+  [ 58,  9],  //  9  swing north at the east end   -- and crosses leg 2 here
+  [ 44, -5],  // 10  street, east end, north lane
+  [-44, -5]   // 11  WESTBOUND back down main street
+];
 
 function toggleCar(){
   if(GAME.state!=='play')return;
@@ -3011,12 +3031,12 @@ function updateCar(dt){
   // --- the driver picks his line toward the next waypoint ---
   var wp=ROUTE[car.wp];
   var tx=wp[0]-car.x, tz=wp[1]-car.z, td=Math.sqrt(tx*tx+tz*tz);
-  if(td<6.5) car.wp=(car.wp+1)%ROUTE.length;
+  if(td<7.0) car.wp=(car.wp+1)%ROUTE.length;
   var off=angWrap(Math.atan2(tx,tz)-car.yaw);
-  car.steer=damp(car.steer,clamp(off*1.7,-1,1),6,dt);
+  car.steer=damp(car.steer,clamp(off*1.9,-1,1),7,dt);
   car.hurry=damp(car.hurry,1,0.5,dt);
 
-  var want=(Math.abs(off)>0.7?4.2:9.6)*car.hurry;
+  var want=(Math.abs(off)>0.9?3.6:(Math.abs(off)>0.4?6.0:9.8))*car.hurry;
   var s=car.speed;
   s+=clamp(want-s,-1,1)*7.0*dt;
   s-=s*0.22*dt;
@@ -3024,7 +3044,7 @@ function updateCar(dt){
   car.speed=s;
 
   var grip=clamp(s/5,0,1);
-  car.yaw+=car.steer*1.5*grip*dt;
+  car.yaw+=car.steer*1.75*grip*dt;
 
   var nx=car.x+Math.sin(car.yaw)*s*dt, nz=car.z+Math.cos(car.yaw)*s*dt;
   var c=collide(nx,nz,1.6,0);

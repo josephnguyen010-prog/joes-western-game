@@ -1214,7 +1214,7 @@ function saloonRoof(bx,bz,w,d,h){
 
 /* --- the church: nave, gabled roof, bell tower over the door, facing the street --- */
 (function church(){
-  var CX=-66, CZ=0, FACE=-Math.PI/2;      // front faces east, down the street
+  var CX=-70, CZ=0, FACE=-Math.PI/2;      // front faces east, down the street
   var W=11, D=16, H=6.4, RISE=3.6;
   var S=Structure(CX,CZ,FACE), g=S.g;
   var mat=PLANKS[3], inMat=mat.clone(); inMat.emissive=new THREE.Color(0x160f09);
