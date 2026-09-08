@@ -1916,9 +1916,14 @@ var hammer,flash;
   gc(0.0118,0.0100,0.190,16,BLUE,0,0.0125,-0.126,'z');
   gb(0.009,0.006,0.150,BLUE,0,0.0215,-0.120);                 // sight rib
   gb(0.005,0.012,0.009,BLUE,0,0.0255,-0.209);                 // front sight blade
-  gc(0.0075,0.0075,0.132,10,BLUE,0.0165,0.0055,-0.104,'z');   // ejector rod housing
-  gc(0.0100,0.0100,0.024,10,STEEL,0.0165,0.0055,-0.181,'z');  // rod head
-  gc(0.0045,0.0045,0.070,8,STEEL,0,0.0125,-0.048,'z');        // base pin
+  /* The ejector rod housing rides UNDER the barrel at about four o'clock,
+     tucked slightly to the right - not out on the flank. Offsetting it
+     0.0137 down and 0.0068 right leaves it overlapping the barrel by 5mm,
+     so the two read as brazed together the way they are on the real gun. */
+  gc(0.0078,0.0078,0.132,10,BLUE,0.0068,-0.0012,-0.104,'z');  // ejector rod housing
+  gc(0.0102,0.0102,0.024,10,STEEL,0.0068,-0.0012,-0.181,'z'); // rod head
+  gc(0.0040,0.0040,0.030,8,STEEL,0.0068,-0.0012,-0.030,'z');  // the rod itself, out the back
+  gc(0.0048,0.0048,0.026,8,STEEL,0,0.0035,-0.036,'z');        // base pin head, under the barrel
 
   // --- cylinder: 42mm, fluted, six mouths ---
   gc(0.0210,0.0210,0.041,20,BLUE,0,0,0,'z',cylGroup);
