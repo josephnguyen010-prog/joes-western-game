@@ -1,0 +1,221 @@
+<title>Nine Mile Wash</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Special+Elite&display=swap">
+<style>
+:root{
+  --ink:#14100E; --ink2:#241B15; --ink3:#3A2C22;
+  --bone:#EBE0CB; --bone-dim:#9C8B70;
+  --dust:#B99A6E; --oxide:#B2402C; --brass:#D9A441; --sage:#6E7A5A;
+  --display:"Rye","Bookman Old Style",Georgia,serif;
+  --type:"Special Elite","Courier New",Courier,monospace;
+  --spread:0px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ink);color:var(--bone);font-family:var(--type);overflow:hidden;-webkit-font-smoothing:antialiased}
+#app{position:fixed;inset:0;overflow:hidden;background:var(--ink);user-select:none;-webkit-user-select:none}
+body.cursoraim.playing #app{cursor:none}
+#view{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+/* --- atmosphere overlays --- */
+#vig{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 78% 68% at 50% 48%, rgba(0,0,0,0) 40%, rgba(20,16,14,.55) 82%, rgba(20,16,14,.9) 100%);
+  mix-blend-mode:multiply}
+#grain{position:absolute;inset:-50%;pointer-events:none;opacity:.055;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+  animation:drift 700ms steps(3,end) infinite}
+@keyframes drift{0%{transform:translate(0,0)}33%{transform:translate(-2%,1%)}66%{transform:translate(1%,-2%)}100%{transform:translate(0,0)}}
+#hurt{position:absolute;inset:0;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse 70% 60% at 50% 50%, rgba(178,64,44,0) 45%, rgba(140,30,20,.85) 100%);
+  transition:opacity .18s linear}
+
+/* --- reticle --- */
+#cross{position:absolute;left:50%;top:50%;width:36px;height:36px;transform:translate(-50%,-50%);pointer-events:none}
+#cross i{position:absolute;background:#FFFFFF;opacity:1;
+  box-shadow:0 0 0 1px rgba(8,5,3,.95), 0 0 4px rgba(0,0,0,.75)}
+#cross i:nth-child(1){left:50%;top:0;width:2px;height:10px;margin-left:-1px;transform:translateY(calc(-1 * var(--spread)))}
+#cross i:nth-child(2){left:50%;bottom:0;width:2px;height:10px;margin-left:-1px;transform:translateY(var(--spread))}
+#cross i:nth-child(3){top:50%;left:0;height:2px;width:10px;margin-top:-1px;transform:translateX(calc(-1 * var(--spread)))}
+#cross i:nth-child(4){top:50%;right:0;height:2px;width:10px;margin-top:-1px;transform:translateX(var(--spread))}
+#cross i:nth-child(5){left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;border-radius:50%;
+  background:#FF4B22;box-shadow:0 0 0 1px rgba(8,5,3,.95),0 0 5px rgba(255,75,34,.7);transform:none}
+#mark{position:absolute;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-50%) rotate(45deg);opacity:0;pointer-events:none}
+#mark i{position:absolute;background:var(--oxide)}
+#mark i:nth-child(1){left:50%;top:0;width:2px;height:8px;margin-left:-1px}
+#mark i:nth-child(2){left:50%;bottom:0;width:2px;height:8px;margin-left:-1px}
+#mark i:nth-child(3){top:50%;left:0;height:2px;width:8px;margin-top:-1px}
+#mark i:nth-child(4){top:50%;right:0;height:2px;width:8px;margin-top:-1px}
+#mark.hit{animation:pop .26s ease-out}
+@keyframes pop{0%{opacity:1;transform:translate(-50%,-50%) rotate(45deg) scale(.6)}100%{opacity:0;transform:translate(-50%,-50%) rotate(45deg) scale(1.35)}}
+
+/* --- hud shell --- */
+#hud{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .5s ease}
+#hud.live{opacity:1}
+.panel{position:absolute;padding:10px 14px;background:linear-gradient(180deg,rgba(20,16,14,.72),rgba(20,16,14,.5));
+  border:1px solid rgba(185,154,110,.28)}
+.lbl{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--bone-dim)}
+.val{font-size:22px;line-height:1.05;color:var(--bone);font-variant-numeric:tabular-nums}
+
+#ledger{top:18px;left:18px;min-width:196px;display:flex;flex-direction:column;gap:7px}
+#ledger .row{display:flex;justify-content:space-between;align-items:baseline;gap:16px}
+#objective{font-size:12px;color:var(--dust);letter-spacing:.04em;border-top:1px solid rgba(185,154,110,.25);padding-top:7px}
+#objective b{color:var(--brass);font-weight:400}
+
+#notches{top:18px;right:18px;text-align:right}
+#tally{display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end;margin-top:8px;min-height:18px;max-width:190px}
+.grp{position:relative;width:26px;height:18px}
+.grp s{position:absolute;top:0;width:2px;height:18px;background:var(--bone);text-decoration:none}
+.grp s:nth-child(1){left:0}.grp s:nth-child(2){left:5px}.grp s:nth-child(3){left:10px}.grp s:nth-child(4){left:15px}
+.grp s.x{left:-2px;width:26px;height:2px;top:8px;background:var(--oxide);transform:rotate(-22deg)}
+
+#compass{top:18px;left:50%;transform:translateX(-50%);width:280px;height:28px;overflow:hidden;padding:0;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
+#strip{position:absolute;top:0;left:0;height:28px;width:100%;will-change:transform}
+#strip span{position:absolute;transform:translateX(-50%);font-size:11px;letter-spacing:.18em;color:var(--bone-dim);top:7px;white-space:nowrap}
+#strip span.card{color:var(--bone);font-size:13px;letter-spacing:.1em}
+#needle{position:absolute;left:50%;top:0;width:1px;height:28px;background:var(--oxide);margin-left:-.5px}
+
+#grit{left:18px;bottom:18px;width:236px}
+#bars{display:flex;gap:4px;margin-top:8px}
+#bars b{flex:1;height:12px;background:rgba(235,224,203,.1);border:1px solid rgba(185,154,110,.3)}
+#bars b.on{background:linear-gradient(180deg,var(--bone),var(--dust));border-color:var(--bone)}
+#bars b.low{background:linear-gradient(180deg,var(--oxide),#7d2a1c);border-color:var(--oxide)}
+#state{margin-top:9px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass);min-height:14px}
+
+#gunhud{position:absolute;right:18px;bottom:18px;display:flex;align-items:flex-end;gap:16px}
+#cyl{position:relative;width:92px;height:92px;border-radius:50%;border:1px solid rgba(185,154,110,.35);
+  background:radial-gradient(circle at 42% 36%, rgba(58,44,34,.85), rgba(20,16,14,.85))}
+#cyl u{position:absolute;left:50%;top:50%;width:19px;height:19px;margin:-9.5px;border-radius:50%;
+  background:#0d0a09;border:1.5px solid rgba(185,154,110,.5);text-decoration:none;transition:background .12s}
+#cyl u.loaded{background:radial-gradient(circle at 35% 30%,#f0c96a,var(--brass));border-color:#7a5a1f}
+#cyl.spin{animation:spin .3s cubic-bezier(.2,.9,.3,1)}
+@keyframes spin{from{transform:rotate(-60deg)}to{transform:rotate(0)}}
+#ammoTxt{text-align:right;padding-bottom:6px}
+#ammoTxt .val{font-size:30px}
+
+#feed{position:absolute;right:18px;top:140px;width:250px;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+#feed div{font-size:12px;color:var(--bone);letter-spacing:.05em;background:rgba(20,16,14,.66);
+  border-right:2px solid var(--oxide);padding:3px 8px;animation:fade 3.4s forwards}
+#feed div em{color:var(--brass);font-style:normal}
+@keyframes fade{0%{opacity:0;transform:translateX(14px)}9%{opacity:1;transform:none}72%{opacity:1}100%{opacity:0}}
+
+/* the Malcolm scope */
+#scope{position:absolute;inset:0;display:none;pointer-events:none;
+  background:radial-gradient(circle at 50% 50%,
+    rgba(0,0,0,0) 0 25%, rgba(20,14,10,.55) 25.4% 27%, rgba(8,6,5,.97) 29% 100%)}
+#scope.on{display:block}
+#scope i{position:absolute;background:rgba(18,14,10,.92)}
+#scope .v{left:50%;top:calc(50% - 25vmin);width:1px;height:50vmin;margin-left:-.5px}
+#scope .h{top:50%;left:calc(50% - 25vmin);height:1px;width:50vmin;margin-top:-.5px}
+#scope .t{left:50%;width:9px;height:1px;margin-left:-4.5px}
+#scope .t1{top:calc(50% + 5vmin)}
+#scope .t2{top:calc(50% + 9vmin);width:7px;margin-left:-3.5px}
+#scope .t3{top:calc(50% + 13vmin);width:5px;margin-left:-2.5px}
+#prompt{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);font-size:13px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--brass);background:rgba(20,16,14,.7);padding:6px 14px;
+  border:1px solid rgba(217,164,65,.35);opacity:0;transition:opacity .2s}
+#prompt.on{opacity:1}
+
+/* --- cards --- */
+.card{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:radial-gradient(ellipse at 50% 40%, rgba(20,16,14,.7), rgba(10,8,7,.94))}
+.card.gone{display:none}
+.sheet{width:min(720px,94vw);max-height:92vh;overflow:auto;padding:26px 34px 24px;text-align:center;
+  background:linear-gradient(175deg,#E4D7BC 0%,#D6C39F 58%,#C6B084 100%);color:#1E1611;
+  border:2px solid #1E1611;box-shadow:0 0 0 4px rgba(30,22,17,.25), 0 26px 60px rgba(0,0,0,.6)}
+.sheet .rule{height:1px;background:#1E1611;opacity:.5;margin:14px 0}
+.sheet .rule.dbl{height:4px;border-top:1px solid #1E1611;border-bottom:1px solid #1E1611;background:none;opacity:.7}
+.eyebrow{font-size:11px;letter-spacing:.4em;text-transform:uppercase;opacity:.72}
+h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;margin:12px 0 6px;text-wrap:balance;color:#1E1611}
+.sub{font-size:13px;letter-spacing:.05em;max-width:58ch;margin:0 auto;opacity:.84;line-height:1.65}
+.keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 24px;margin:18px 0 4px;text-align:left}
+.keys div{display:flex;justify-content:space-between;gap:10px;font-size:12px;border-bottom:1px dotted rgba(30,22,17,.4);padding-bottom:4px}
+.keys div span:first-child{font-weight:700;letter-spacing:.06em}
+.keys div span:last-child{opacity:.72;text-align:right}
+.go{margin-top:20px;font-family:var(--display);font-size:19px;letter-spacing:.05em;color:#1E1611;
+  border:2px solid #1E1611;background:transparent;padding:11px 30px;cursor:pointer;pointer-events:auto}
+.go:hover,.go:focus-visible{background:#1E1611;color:#E4D7BC;outline:none}
+.stats{display:flex;justify-content:center;gap:34px;margin:16px 0 2px;flex-wrap:wrap}
+.stats div{text-align:center}
+.stats b{display:block;font-family:var(--display);font-size:30px;line-height:1.15;font-variant-numeric:tabular-nums}
+.stats span{font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.7}
+.note{font-size:11px;opacity:.62;margin-top:16px;letter-spacing:.04em;line-height:1.5}
+#loading{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);font-size:12px;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--bone-dim)}
+@media (prefers-reduced-motion:reduce){#grain{animation:none}}
+@media (max-width:680px){#compass,#feed{display:none}#cyl{width:70px;height:70px}#cyl u{width:14px;height:14px;margin:-7px}}
+</style>
+
+<div id="app">
+  <canvas id="view"></canvas>
+  <div id="vig"></div>
+  <div id="grain"></div>
+  <div id="hurt"></div>
+
+  <div id="hud">
+    <div id="cross"><i></i><i></i><i></i><i></i><i></i></div>
+    <div id="mark"><i></i><i></i><i></i><i></i></div>
+    <div class="panel" id="ledger">
+      <div class="row"><span class="lbl">Nine Mile Wash</span><span class="lbl" id="clock">0:00</span></div>
+      <div class="row"><span class="val" id="left">12</span><span class="lbl">outlaws afoot</span></div>
+      <div id="objective">Wave <b id="wave">1</b> of 3 &middot; <span id="objtxt">they know you are here</span></div>
+    </div>
+    <div class="panel" id="compass"><div id="strip"></div><div id="needle"></div></div>
+    <div class="panel" id="notches"><span class="lbl">Notches cut</span><div id="tally"></div></div>
+    <div class="panel" id="grit"><span class="lbl">Grit</span><div id="bars"></div><div id="state"></div></div>
+    <div id="gunhud">
+      <div id="ammoTxt"><div class="val" id="ammoN">6</div><span class="lbl" id="cal">.45 Colt</span></div>
+      <div id="cyl"></div>
+    </div>
+    <div id="feed"></div>
+    <div id="scope"><i class="v"></i><i class="h"></i><i class="t t1"></i><i class="t t2"></i><i class="t t3"></i></div>
+    <div id="prompt">F &middot; take the wheel</div>
+  </div>
+
+  <div class="card" id="title">
+    <div class="sheet">
+      <div class="eyebrow">Cimarron County &middot; No Man&rsquo;s Land &middot; April 1889</div>
+      <h1>Nine Mile Wash</h1>
+      <div class="rule dbl"></div>
+      <p class="sub">No county, no court, no sheriff between here and Texas &mdash; that is what they mean by No Man&rsquo;s Land, and the Prine brothers worked it out before anybody else. Six chambers, a borrowed team, three saloons still standing, and four hundred yards of dead main street. Every door on it opens &mdash; and there is a man with a Sharps on the Occidental roof. Put him down, then take the stairs behind the saloon and the rifle is yours.</p>
+      <div class="keys">
+        <div><span>Mouse</span><span>look and aim</span></div>
+        <div><span>W A S D</span><span>walk</span></div>
+        <div><span>Shift</span><span>run</span></div>
+        <div><span>Space</span><span>jump</span></div>
+        <div><span>Left click</span><span>fire</span></div>
+        <div><span>R</span><span>reload, one round at a time</span></div>
+        <div><span>F</span><span>up on the wagon seat / down</span></div>
+        <div><span>Right-drag</span><span>swing the view fast</span></div>
+        <div><span>Q / E</span><span>turn left and right</span></div>
+        <div><span>1 / 2</span><span>Colt / Sharps rifle</span></div>
+        <div><span>Z</span><span>look down the scope</span></div>
+      </div>
+      <button class="go" id="start">Step into the street</button>
+      <p class="note">Prototype. Town, terrain, outlaws, the car and every gunshot are generated in code &mdash; no image files, no audio files, one page.</p>
+    </div>
+  </div>
+
+  <div class="card gone" id="over">
+    <div class="sheet">
+      <div class="eyebrow" id="ovEye">Coroner&rsquo;s inquest</div>
+      <h1 id="ovTitle">Buried at Nine Mile</h1>
+      <div class="rule dbl"></div>
+      <p class="sub" id="ovSub">You went down in the street outside the Occidental. The Prine brothers keep the town.</p>
+      <div class="stats">
+        <div><b id="sKills">0</b><span>outlaws down</span></div>
+        <div><b id="sAcc">0%</b><span>rounds on target</span></div>
+        <div><b id="sTime">0:00</b><span>time on the street</span></div>
+        <div><b id="sShots">0</b><span>shots fired</span></div>
+      </div>
+      <div class="rule"></div>
+      <button class="go" id="again">Ride back in</button>
+    </div>
+  </div>
+
+  <div id="loading">building the wash&hellip;</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
