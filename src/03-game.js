@@ -16,7 +16,7 @@ var ui={
   hud:$('hud'),left:$('left'),wave:$('wave'),objtxt:$('objtxt'),clock:$('clock'),
   tally:$('tally'),bars:$('bars'),state:$('state'),ammoN:$('ammoN'),cyl:$('cyl'),
   feed:$('feed'),prompt:$('prompt'),cross:$('cross'),mark:$('mark'),hurt:$('hurt'),strip:$('strip'),
-  cal:$('cal'),scope:$('scope')
+  cal:$('cal'),scope:$('scope'),pause:$('pause')
 };
 (function initHud(){
   var i,b;
@@ -51,6 +51,7 @@ var cursorAim=false, lockFails=0, lastLockTry=0, dragging=false;
 window.addEventListener('keydown',function(e){
   keys[e.code]=true;
   if(GAME.state==='over'&&(e.code==='Enter'||e.code==='Space'||e.code==='KeyR')){ e.preventDefault(); beginRun(); return; }
+  if(e.code==='Escape'&&GAME.state==='play'){ e.preventDefault(); if(GAME.paused) closePause(); else openPause(); return; }
   if(e.code==='KeyR') startReload();
   if(e.code==='KeyF') toggleCar();
   if(e.code==='Digit1') setWeapon('colt');
@@ -69,10 +70,9 @@ document.addEventListener('mousemove',function(e){
   }
 });
 document.addEventListener('mousedown',function(e){
-  if(GAME.state!=='play')return;
+  if(GAME.state!=='play'||GAME.paused)return;
   if(e.button===2){ dragging=true; e.preventDefault(); return; }   // right-drag swings the view
   if(e.button!==0)return;
-  if(GAME.paused){ lock(); return; }
   P.fireHeld=true; fire();
 });
 document.addEventListener('mouseup',function(e){
@@ -120,7 +120,7 @@ document.addEventListener('pointerlockchange',function(){
     lockFails=0; GAME.paused=false; setCursorAim(false);
     if(stateMsgT>90){ ui.state.textContent=''; stateMsgT=0; }
   }else if(GAME.state==='play'&&!cursorAim){
-    GAME.paused=true; say('paused - click to step back in',99);
+    openPause();                       // the mouse got away, so put the menu up
   }
 });
 
@@ -134,6 +134,54 @@ function activeCam(){ return camera; }   // the wagon is driven from the seat, n
 function aimNDC(){
   if(cursorAim) return _ndc.set((curX/window.innerWidth)*2-1,-(curY/window.innerHeight)*2+1);
   return _ndc.set(0,0);
+}
+
+function openPause(){
+  if(GAME.state!=='play'||GAME.paused)return;
+  GAME.paused=true;
+  P.fireHeld=false; dragging=false;
+  if(document.exitPointerLock) document.exitPointerLock();
+  document.body.classList.remove('playing');          // the cursor comes back
+  var left=GAME.left, cut=GAME.kills;
+  $('pauseStat').textContent=
+    (cut?('You have cut '+cut+' notch'+(cut===1?'':'es')+'. '):'No notches cut yet. ')+
+    (left===1?'One outlaw still afoot.':left+' outlaws still afoot.');
+  ui.pause.classList.remove('gone');
+  setTimeout(function(){ try{ $('resume').focus(); }catch(err){} },60);
+}
+function closePause(){
+  if(!GAME.paused)return;
+  ui.pause.classList.add('gone');
+  $('fullKeys').hidden=true;
+  document.body.classList.add('playing');
+  GAME.paused=false;
+  lock();
+}
+function clearEnemies(){
+  for(var i=enemies.length-1;i>=0;i--){
+    var e=enemies[i];
+    world.remove(e.g);
+    var a=hitables.indexOf(e.torso); if(a>=0)hitables.splice(a,1);
+    a=hitables.indexOf(e.head); if(a>=0)hitables.splice(a,1);
+  }
+  enemies.length=0;
+}
+function toTitle(){
+  GAME.state='title'; GAME.paused=false;
+  setScope(false); camera.fov=74; camera.updateProjectionMatrix();
+  if(document.exitPointerLock) document.exitPointerLock();
+  document.body.classList.remove('playing');
+  ui.hud.classList.remove('live');
+  ui.pause.classList.add('gone');
+  $('over').classList.add('gone');
+  $('title').classList.remove('gone');
+  $('fullKeys').hidden=true;
+  clearEnemies();
+  P.inCar=false; car.occupied=false; car.speed=0;
+  P.fireHeld=false; dragging=false;
+  ui.feed.innerHTML=''; ui.state.textContent=''; stateMsgT=0; lastStateTxt=null;
+  titleT=0;
+  setTimeout(function(){ try{ $('start').focus(); }catch(err){} },60);
 }
 
 function setWeapon(w){
@@ -799,7 +847,7 @@ function updateAmbient(dt,cam){
 /* ============================================================
    21. loop
    ============================================================ */
-var last=performance.now(), titleT=0;
+var last=performance.now(), titleT=0;   // titleT also drives the opening dolly after a quit
 function frame(now){
   requestAnimationFrame(frame);
   var dt=Math.min(0.05,(now-last)/1000); last=now;
@@ -866,16 +914,11 @@ function beginRun(){
   P.weapon='colt'; P.hasRifle=false; P.rifleAmmo=0; P.rifleWork=0; P.scoped=false;
   camera.fov=74; camera.updateProjectionMatrix();
   if(riflePickup){ if(!riflePickup.taken) world.remove(riflePickup.g); riflePickup=null; }
+  ui.pause.classList.add('gone'); $('fullKeys').hidden=true;
   for(var dI=0;dI<doors.length;dI++){ doors[dI].a=0; doors[dI].v=0; doors[dI].hL.rotation.y=0; doors[dI].hR.rotation.y=0; }
   lastWeapon='';
   car.x=14; car.z=6.5; car.yaw=-0.5; car.speed=0; car.steer=0; car.occupied=false;
-  for(var i=enemies.length-1;i>=0;i--){
-    var e=enemies[i];
-    world.remove(e.g);
-    var a=hitables.indexOf(e.torso); if(a>=0)hitables.splice(a,1);
-    a=hitables.indexOf(e.head); if(a>=0)hitables.splice(a,1);
-  }
-  enemies.length=0;
+  clearEnemies();
   lastAmmo=lastKills=lastHp=lastLeft=-1; lastClock='';
   ui.feed.innerHTML='';
   $('title').classList.add('gone');
@@ -888,7 +931,13 @@ function beginRun(){
 }
 $('start').addEventListener('click',beginRun);
 $('again').addEventListener('click',beginRun);
-canvas.addEventListener('click',function(){ if(GAME.state==='play'&&GAME.paused) lock(); });
+$('resume').addEventListener('click',closePause);
+$('quit').addEventListener('click',toTitle);
+$('menuBtn').addEventListener('click',function(){ if(GAME.paused) closePause(); else openPause(); });
+$('showKeys').addEventListener('click',function(){
+  var k=$('fullKeys'); k.hidden=!k.hidden;
+  $('showKeys').textContent=k.hidden?'Controls':'Hide controls';
+});
 
 $('loading').style.display='none';
 requestAnimationFrame(frame);

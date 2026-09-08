@@ -62,7 +62,7 @@ body.cursoraim.playing #app{cursor:none}
 #objective{font-size:12px;color:var(--dust);letter-spacing:.04em;border-top:1px solid rgba(185,154,110,.25);padding-top:7px}
 #objective b{color:var(--brass);font-weight:400}
 
-#notches{top:18px;right:18px;text-align:right}
+#notches{top:56px;right:18px;text-align:right}
 #tally{display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end;margin-top:8px;min-height:18px;max-width:190px}
 .grp{position:relative;width:26px;height:18px}
 .grp s{position:absolute;top:0;width:2px;height:18px;background:var(--bone);text-decoration:none}
@@ -95,7 +95,7 @@ body.cursoraim.playing #app{cursor:none}
 #ammoTxt{text-align:right;padding-bottom:6px}
 #ammoTxt .val{font-size:30px}
 
-#feed{position:absolute;right:18px;top:140px;width:250px;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+#feed{position:absolute;right:18px;top:178px;width:250px;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
 #feed div{font-size:12px;color:var(--bone);letter-spacing:.05em;background:rgba(20,16,14,.66);
   border-right:2px solid var(--oxide);padding:3px 8px;animation:fade 3.4s forwards}
 #feed div em{color:var(--brass);font-style:normal}
@@ -131,12 +131,21 @@ body.cursoraim.playing #app{cursor:none}
 h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;margin:12px 0 6px;text-wrap:balance;color:#1E1611}
 .sub{font-size:13px;letter-spacing:.05em;max-width:58ch;margin:0 auto;opacity:.84;line-height:1.65}
 .keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 24px;margin:18px 0 4px;text-align:left}
+.keys[hidden]{display:none}
 .keys div{display:flex;justify-content:space-between;gap:10px;font-size:12px;border-bottom:1px dotted rgba(30,22,17,.4);padding-bottom:4px}
 .keys div span:first-child{font-weight:700;letter-spacing:.06em}
 .keys div span:last-child{opacity:.72;text-align:right}
 .go{margin-top:20px;font-family:var(--display);font-size:19px;letter-spacing:.05em;color:#1E1611;
   border:2px solid #1E1611;background:transparent;padding:11px 30px;cursor:pointer;pointer-events:auto}
 .go:hover,.go:focus-visible{background:#1E1611;color:#E4D7BC;outline:none}
+.go.alt{font-size:15px;padding:9px 20px;border-width:1px}
+.btnrow{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:4px}
+.btnrow .go{margin-top:14px}
+#menuBtn{position:absolute;top:18px;right:18px;pointer-events:auto;cursor:pointer;
+  font-family:var(--type);font-size:10px;letter-spacing:.20em;text-transform:uppercase;
+  color:var(--bone-dim);background:linear-gradient(180deg,rgba(20,16,14,.72),rgba(20,16,14,.5));
+  border:1px solid rgba(185,154,110,.28);padding:7px 11px}
+#menuBtn:hover,#menuBtn:focus-visible{color:var(--bone);border-color:rgba(185,154,110,.6);outline:none}
 .stats{display:flex;justify-content:center;gap:34px;margin:16px 0 2px;flex-wrap:wrap}
 .stats div{text-align:center}
 .stats b{display:block;font-family:var(--display);font-size:30px;line-height:1.15;font-variant-numeric:tabular-nums}
@@ -172,6 +181,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     <div id="feed"></div>
     <div id="scope"><i class="v"></i><i class="h"></i><i class="t t1"></i><i class="t t2"></i><i class="t t3"></i></div>
     <div id="prompt">F &middot; take the wheel</div>
+    <button id="menuBtn" type="button">Esc &middot; menu</button>
   </div>
 
   <div class="card" id="title">
@@ -179,22 +189,45 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
       <div class="eyebrow">Cimarron County &middot; No Man&rsquo;s Land &middot; April 1889</div>
       <h1>Nine Mile Wash</h1>
       <div class="rule dbl"></div>
-      <p class="sub">No county, no court, no sheriff between here and Texas &mdash; that is what they mean by No Man&rsquo;s Land, and the Prine brothers worked it out before anybody else. Six chambers, a borrowed team, three saloons still standing, and four hundred yards of dead main street. Every door on it opens &mdash; and there is a man with a Sharps on the Occidental roof. Put him down, then take the stairs behind the saloon and the rifle is yours.</p>
+      <p class="sub">No sheriff between here and Texas. Thirteen of the Prine outfit, three saloons, and one man with a rifle on the Occidental roof.</p>
       <div class="keys">
         <div><span>Mouse</span><span>look and aim</span></div>
+        <div><span>W A S D</span><span>move, Shift to run</span></div>
+        <div><span>Left click</span><span>fire</span></div>
+        <div><span>R</span><span>reload</span></div>
+        <div><span>F</span><span>take the wagon</span></div>
+        <div><span>Esc</span><span>pause, and the rest of the keys</span></div>
+      </div>
+      <button class="go" id="start">Step into the street</button>
+      <p class="note">Everything here is generated in code &mdash; no image files, no audio files.</p>
+    </div>
+  </div>
+
+  <div class="card gone" id="pause">
+    <div class="sheet">
+      <div class="eyebrow">Nine Mile Wash</div>
+      <h1>Hold Up</h1>
+      <div class="rule dbl"></div>
+      <p class="sub" id="pauseStat">The street is waiting.</p>
+      <div class="keys" id="fullKeys" hidden>
+        <div><span>Mouse</span><span>look and aim</span></div>
+        <div><span>Right-drag</span><span>swing the view fast</span></div>
         <div><span>W A S D</span><span>walk</span></div>
         <div><span>Shift</span><span>run</span></div>
         <div><span>Space</span><span>jump</span></div>
+        <div><span>Q / E, arrows</span><span>turn</span></div>
         <div><span>Left click</span><span>fire</span></div>
         <div><span>R</span><span>reload, one round at a time</span></div>
-        <div><span>F</span><span>up on the wagon seat / down</span></div>
-        <div><span>Right-drag</span><span>swing the view fast</span></div>
-        <div><span>Q / E</span><span>turn left and right</span></div>
         <div><span>1 / 2</span><span>Colt / Sharps rifle</span></div>
         <div><span>Z</span><span>look down the scope</span></div>
+        <div><span>F</span><span>up on the wagon seat / down</span></div>
+        <div><span>Esc</span><span>this menu</span></div>
       </div>
-      <button class="go" id="start">Step into the street</button>
-      <p class="note">Prototype. Town, terrain, outlaws, the car and every gunshot are generated in code &mdash; no image files, no audio files, one page.</p>
+      <div class="btnrow">
+        <button class="go" id="resume" type="button">Back to the street</button>
+        <button class="go alt" id="showKeys" type="button">Controls</button>
+        <button class="go alt" id="quit" type="button">Quit</button>
+      </div>
     </div>
   </div>
 

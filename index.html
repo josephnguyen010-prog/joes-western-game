@@ -1,3 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{color-scheme:light}
+  body{margin:0;font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#faf9f7}
+  img{max-width:100%}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
 <title>Nine Mile Wash</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -62,7 +75,7 @@ body.cursoraim.playing #app{cursor:none}
 #objective{font-size:12px;color:var(--dust);letter-spacing:.04em;border-top:1px solid rgba(185,154,110,.25);padding-top:7px}
 #objective b{color:var(--brass);font-weight:400}
 
-#notches{top:18px;right:18px;text-align:right}
+#notches{top:56px;right:18px;text-align:right}
 #tally{display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end;margin-top:8px;min-height:18px;max-width:190px}
 .grp{position:relative;width:26px;height:18px}
 .grp s{position:absolute;top:0;width:2px;height:18px;background:var(--bone);text-decoration:none}
@@ -95,7 +108,7 @@ body.cursoraim.playing #app{cursor:none}
 #ammoTxt{text-align:right;padding-bottom:6px}
 #ammoTxt .val{font-size:30px}
 
-#feed{position:absolute;right:18px;top:140px;width:250px;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+#feed{position:absolute;right:18px;top:178px;width:250px;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
 #feed div{font-size:12px;color:var(--bone);letter-spacing:.05em;background:rgba(20,16,14,.66);
   border-right:2px solid var(--oxide);padding:3px 8px;animation:fade 3.4s forwards}
 #feed div em{color:var(--brass);font-style:normal}
@@ -131,12 +144,21 @@ body.cursoraim.playing #app{cursor:none}
 h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;margin:12px 0 6px;text-wrap:balance;color:#1E1611}
 .sub{font-size:13px;letter-spacing:.05em;max-width:58ch;margin:0 auto;opacity:.84;line-height:1.65}
 .keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 24px;margin:18px 0 4px;text-align:left}
+.keys[hidden]{display:none}
 .keys div{display:flex;justify-content:space-between;gap:10px;font-size:12px;border-bottom:1px dotted rgba(30,22,17,.4);padding-bottom:4px}
 .keys div span:first-child{font-weight:700;letter-spacing:.06em}
 .keys div span:last-child{opacity:.72;text-align:right}
 .go{margin-top:20px;font-family:var(--display);font-size:19px;letter-spacing:.05em;color:#1E1611;
   border:2px solid #1E1611;background:transparent;padding:11px 30px;cursor:pointer;pointer-events:auto}
 .go:hover,.go:focus-visible{background:#1E1611;color:#E4D7BC;outline:none}
+.go.alt{font-size:15px;padding:9px 20px;border-width:1px}
+.btnrow{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:4px}
+.btnrow .go{margin-top:14px}
+#menuBtn{position:absolute;top:18px;right:18px;pointer-events:auto;cursor:pointer;
+  font-family:var(--type);font-size:10px;letter-spacing:.20em;text-transform:uppercase;
+  color:var(--bone-dim);background:linear-gradient(180deg,rgba(20,16,14,.72),rgba(20,16,14,.5));
+  border:1px solid rgba(185,154,110,.28);padding:7px 11px}
+#menuBtn:hover,#menuBtn:focus-visible{color:var(--bone);border-color:rgba(185,154,110,.6);outline:none}
 .stats{display:flex;justify-content:center;gap:34px;margin:16px 0 2px;flex-wrap:wrap}
 .stats div{text-align:center}
 .stats b{display:block;font-family:var(--display);font-size:30px;line-height:1.15;font-variant-numeric:tabular-nums}
@@ -172,6 +194,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     <div id="feed"></div>
     <div id="scope"><i class="v"></i><i class="h"></i><i class="t t1"></i><i class="t t2"></i><i class="t t3"></i></div>
     <div id="prompt">F &middot; take the wheel</div>
+    <button id="menuBtn" type="button">Esc &middot; menu</button>
   </div>
 
   <div class="card" id="title">
@@ -179,22 +202,45 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
       <div class="eyebrow">Cimarron County &middot; No Man&rsquo;s Land &middot; April 1889</div>
       <h1>Nine Mile Wash</h1>
       <div class="rule dbl"></div>
-      <p class="sub">No county, no court, no sheriff between here and Texas &mdash; that is what they mean by No Man&rsquo;s Land, and the Prine brothers worked it out before anybody else. Six chambers, a borrowed team, three saloons still standing, and four hundred yards of dead main street. Every door on it opens &mdash; and there is a man with a Sharps on the Occidental roof. Put him down, then take the stairs behind the saloon and the rifle is yours.</p>
+      <p class="sub">No sheriff between here and Texas. Thirteen of the Prine outfit, three saloons, and one man with a rifle on the Occidental roof.</p>
       <div class="keys">
         <div><span>Mouse</span><span>look and aim</span></div>
+        <div><span>W A S D</span><span>move, Shift to run</span></div>
+        <div><span>Left click</span><span>fire</span></div>
+        <div><span>R</span><span>reload</span></div>
+        <div><span>F</span><span>take the wagon</span></div>
+        <div><span>Esc</span><span>pause, and the rest of the keys</span></div>
+      </div>
+      <button class="go" id="start">Step into the street</button>
+      <p class="note">Everything here is generated in code &mdash; no image files, no audio files.</p>
+    </div>
+  </div>
+
+  <div class="card gone" id="pause">
+    <div class="sheet">
+      <div class="eyebrow">Nine Mile Wash</div>
+      <h1>Hold Up</h1>
+      <div class="rule dbl"></div>
+      <p class="sub" id="pauseStat">The street is waiting.</p>
+      <div class="keys" id="fullKeys" hidden>
+        <div><span>Mouse</span><span>look and aim</span></div>
+        <div><span>Right-drag</span><span>swing the view fast</span></div>
         <div><span>W A S D</span><span>walk</span></div>
         <div><span>Shift</span><span>run</span></div>
         <div><span>Space</span><span>jump</span></div>
+        <div><span>Q / E, arrows</span><span>turn</span></div>
         <div><span>Left click</span><span>fire</span></div>
         <div><span>R</span><span>reload, one round at a time</span></div>
-        <div><span>F</span><span>up on the wagon seat / down</span></div>
-        <div><span>Right-drag</span><span>swing the view fast</span></div>
-        <div><span>Q / E</span><span>turn left and right</span></div>
         <div><span>1 / 2</span><span>Colt / Sharps rifle</span></div>
         <div><span>Z</span><span>look down the scope</span></div>
+        <div><span>F</span><span>up on the wagon seat / down</span></div>
+        <div><span>Esc</span><span>this menu</span></div>
       </div>
-      <button class="go" id="start">Step into the street</button>
-      <p class="note">Prototype. Town, terrain, outlaws, the car and every gunshot are generated in code &mdash; no image files, no audio files, one page.</p>
+      <div class="btnrow">
+        <button class="go" id="resume" type="button">Back to the street</button>
+        <button class="go alt" id="showKeys" type="button">Controls</button>
+        <button class="go alt" id="quit" type="button">Quit</button>
+      </div>
     </div>
   </div>
 
@@ -2162,7 +2208,7 @@ var ui={
   hud:$('hud'),left:$('left'),wave:$('wave'),objtxt:$('objtxt'),clock:$('clock'),
   tally:$('tally'),bars:$('bars'),state:$('state'),ammoN:$('ammoN'),cyl:$('cyl'),
   feed:$('feed'),prompt:$('prompt'),cross:$('cross'),mark:$('mark'),hurt:$('hurt'),strip:$('strip'),
-  cal:$('cal'),scope:$('scope')
+  cal:$('cal'),scope:$('scope'),pause:$('pause')
 };
 (function initHud(){
   var i,b;
@@ -2197,6 +2243,7 @@ var cursorAim=false, lockFails=0, lastLockTry=0, dragging=false;
 window.addEventListener('keydown',function(e){
   keys[e.code]=true;
   if(GAME.state==='over'&&(e.code==='Enter'||e.code==='Space'||e.code==='KeyR')){ e.preventDefault(); beginRun(); return; }
+  if(e.code==='Escape'&&GAME.state==='play'){ e.preventDefault(); if(GAME.paused) closePause(); else openPause(); return; }
   if(e.code==='KeyR') startReload();
   if(e.code==='KeyF') toggleCar();
   if(e.code==='Digit1') setWeapon('colt');
@@ -2215,10 +2262,9 @@ document.addEventListener('mousemove',function(e){
   }
 });
 document.addEventListener('mousedown',function(e){
-  if(GAME.state!=='play')return;
+  if(GAME.state!=='play'||GAME.paused)return;
   if(e.button===2){ dragging=true; e.preventDefault(); return; }   // right-drag swings the view
   if(e.button!==0)return;
-  if(GAME.paused){ lock(); return; }
   P.fireHeld=true; fire();
 });
 document.addEventListener('mouseup',function(e){
@@ -2266,7 +2312,7 @@ document.addEventListener('pointerlockchange',function(){
     lockFails=0; GAME.paused=false; setCursorAim(false);
     if(stateMsgT>90){ ui.state.textContent=''; stateMsgT=0; }
   }else if(GAME.state==='play'&&!cursorAim){
-    GAME.paused=true; say('paused - click to step back in',99);
+    openPause();                       // the mouse got away, so put the menu up
   }
 });
 
@@ -2280,6 +2326,54 @@ function activeCam(){ return camera; }   // the wagon is driven from the seat, n
 function aimNDC(){
   if(cursorAim) return _ndc.set((curX/window.innerWidth)*2-1,-(curY/window.innerHeight)*2+1);
   return _ndc.set(0,0);
+}
+
+function openPause(){
+  if(GAME.state!=='play'||GAME.paused)return;
+  GAME.paused=true;
+  P.fireHeld=false; dragging=false;
+  if(document.exitPointerLock) document.exitPointerLock();
+  document.body.classList.remove('playing');          // the cursor comes back
+  var left=GAME.left, cut=GAME.kills;
+  $('pauseStat').textContent=
+    (cut?('You have cut '+cut+' notch'+(cut===1?'':'es')+'. '):'No notches cut yet. ')+
+    (left===1?'One outlaw still afoot.':left+' outlaws still afoot.');
+  ui.pause.classList.remove('gone');
+  setTimeout(function(){ try{ $('resume').focus(); }catch(err){} },60);
+}
+function closePause(){
+  if(!GAME.paused)return;
+  ui.pause.classList.add('gone');
+  $('fullKeys').hidden=true;
+  document.body.classList.add('playing');
+  GAME.paused=false;
+  lock();
+}
+function clearEnemies(){
+  for(var i=enemies.length-1;i>=0;i--){
+    var e=enemies[i];
+    world.remove(e.g);
+    var a=hitables.indexOf(e.torso); if(a>=0)hitables.splice(a,1);
+    a=hitables.indexOf(e.head); if(a>=0)hitables.splice(a,1);
+  }
+  enemies.length=0;
+}
+function toTitle(){
+  GAME.state='title'; GAME.paused=false;
+  setScope(false); camera.fov=74; camera.updateProjectionMatrix();
+  if(document.exitPointerLock) document.exitPointerLock();
+  document.body.classList.remove('playing');
+  ui.hud.classList.remove('live');
+  ui.pause.classList.add('gone');
+  $('over').classList.add('gone');
+  $('title').classList.remove('gone');
+  $('fullKeys').hidden=true;
+  clearEnemies();
+  P.inCar=false; car.occupied=false; car.speed=0;
+  P.fireHeld=false; dragging=false;
+  ui.feed.innerHTML=''; ui.state.textContent=''; stateMsgT=0; lastStateTxt=null;
+  titleT=0;
+  setTimeout(function(){ try{ $('start').focus(); }catch(err){} },60);
 }
 
 function setWeapon(w){
@@ -2945,7 +3039,7 @@ function updateAmbient(dt,cam){
 /* ============================================================
    21. loop
    ============================================================ */
-var last=performance.now(), titleT=0;
+var last=performance.now(), titleT=0;   // titleT also drives the opening dolly after a quit
 function frame(now){
   requestAnimationFrame(frame);
   var dt=Math.min(0.05,(now-last)/1000); last=now;
@@ -3012,16 +3106,11 @@ function beginRun(){
   P.weapon='colt'; P.hasRifle=false; P.rifleAmmo=0; P.rifleWork=0; P.scoped=false;
   camera.fov=74; camera.updateProjectionMatrix();
   if(riflePickup){ if(!riflePickup.taken) world.remove(riflePickup.g); riflePickup=null; }
+  ui.pause.classList.add('gone'); $('fullKeys').hidden=true;
   for(var dI=0;dI<doors.length;dI++){ doors[dI].a=0; doors[dI].v=0; doors[dI].hL.rotation.y=0; doors[dI].hR.rotation.y=0; }
   lastWeapon='';
   car.x=14; car.z=6.5; car.yaw=-0.5; car.speed=0; car.steer=0; car.occupied=false;
-  for(var i=enemies.length-1;i>=0;i--){
-    var e=enemies[i];
-    world.remove(e.g);
-    var a=hitables.indexOf(e.torso); if(a>=0)hitables.splice(a,1);
-    a=hitables.indexOf(e.head); if(a>=0)hitables.splice(a,1);
-  }
-  enemies.length=0;
+  clearEnemies();
   lastAmmo=lastKills=lastHp=lastLeft=-1; lastClock='';
   ui.feed.innerHTML='';
   $('title').classList.add('gone');
@@ -3034,9 +3123,17 @@ function beginRun(){
 }
 $('start').addEventListener('click',beginRun);
 $('again').addEventListener('click',beginRun);
-canvas.addEventListener('click',function(){ if(GAME.state==='play'&&GAME.paused) lock(); });
+$('resume').addEventListener('click',closePause);
+$('quit').addEventListener('click',toTitle);
+$('menuBtn').addEventListener('click',function(){ if(GAME.paused) closePause(); else openPause(); });
+$('showKeys').addEventListener('click',function(){
+  var k=$('fullKeys'); k.hidden=!k.hidden;
+  $('showKeys').textContent=k.hidden?'Controls':'Hide controls';
+});
 
 $('loading').style.display='none';
 requestAnimationFrame(frame);
 })();
 </script>
+</body>
+</html>

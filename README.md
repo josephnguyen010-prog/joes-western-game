@@ -23,6 +23,7 @@ Everything you see is generated in code at load time. There are no image files, 
 | Z | Look down the scope (Sharps only) |
 | F | Up on the wagon seat, or down |
 | Q / E, arrows | Turn |
+| Esc | Pause menu — resume, full control list, or quit |
 
 ### Two aiming modes
 
@@ -57,6 +58,7 @@ Three.js r128 from a CDN, and about 3,000 lines of plain ES5 JavaScript in one p
 ```
 index.html          the playable page — everything bundled into one file
 src/
+  head.html         doctype, meta and the base reset
   00-shell.html     markup, CSS and the three.js <script> tag
   01-world.js       utilities, synthesized audio, canvas textures, terrain,
                     the town and its interiors, doors, props, sky
