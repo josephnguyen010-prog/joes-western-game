@@ -474,10 +474,13 @@ function addBlocker(x,z,w,d,top){
 var platforms=[];      // walkable surfaces above the dirt: roofs, stairs, landings
 var portals=[];        // doorways, where nothing may ever block you
 function floorAt(x,z,feet){
+  // Inclusive bounds: exclusive ones leave a hairline at a shared edge that a
+  // footfall can land exactly on. The step-up allowance clears one stair tread
+  // with room to spare.
   var h=terrainH(x,z);
   for(var i=0;i<platforms.length;i++){
     var p=platforms[i];
-    if(x>p.x0&&x<p.x1&&z>p.z0&&z<p.z1&&p.y>h&&p.y<=feet+0.55) h=p.y;
+    if(x>=p.x0&&x<=p.x1&&z>=p.z0&&z<=p.z1&&p.y>h&&p.y<=feet+0.62) h=p.y;
   }
   return h;
 }
@@ -511,6 +514,10 @@ function Structure(x,z,face){
   };
   S.add=function(o){ g.add(o); return o; };
   S.blocker=function(lx,lz,lw,ld,top){ addBlocker(x+lx*c+lz*s, z-lx*s+lz*c, swap?ld:lw, swap?lw:ld, top); };
+  S.platform=function(lx,lz,lw,ld,py){
+    var wx=x+lx*c+lz*s, wz=z-lx*s+lz*c, pw=swap?ld:lw, pd=swap?lw:ld;
+    platforms.push({x0:wx-pw/2,x1:wx+pw/2,z0:wz-pd/2,z1:wz+pd/2,y:py});
+  };
   return S;
 }
 
@@ -612,7 +619,7 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
     S.part(1.5,1.2,0.12,MAT.glass, w/2-1.5,1.75,-d/2-0.07,false);
   }
 
-  var fh=h+(lowFront?0.95:rr(1.5,2.3)), i;
+  var fh=h+(lowFront?0.95:rr(1.5,2.3)), i, deck=0;
   S.part(0.30,h,0.34,shell,-w/2-0.12,h/2,-d/2-0.14,false);           // corner pilasters
   S.part(0.30,h,0.34,shell, w/2+0.12,h/2,-d/2-0.14,false);
   S.part(w+0.34,0.20,0.42,MAT.wood1,0,h+0.02,-d/2-0.16,false);       // cornice
@@ -623,17 +630,23 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
     S.part(w*0.24,t2,0.36,shell, w*0.32,h+t2/2,-d/2-0.14,false);
     S.part(w*0.16,t3,0.36,shell,-w*0.54,h+t3/2,-d/2-0.14,false);
     S.part(w*0.16,t3,0.36,shell, w*0.54,h+t3/2,-d/2-0.14,false);
-  }else if(style==='gable'){                                         // a real pitched roof
-    var half=(w+0.5)/2, riseR=1.9, slope=Math.hypot(half,riseR), angR=Math.atan2(riseR,half);
-    var g1=box(slope,0.18,d+0.9,MAT.wood1,-half/2,h+riseR/2+0.10,0,g); g1.rotation.z= angR;
-    var g2=box(slope,0.18,d+0.9,MAT.wood1, half/2,h+riseR/2+0.10,0,g); g2.rotation.z=-angR;
+  }else if(style==='gable'){
+    /* A false front on the street with the pitched roof behind it, which is
+       how these were actually put up - and it leaves a flat deck along the
+       front that you can run and jump across. */
+    S.part(w+0.34,fh-h,0.36,shell,0,(h+fh)/2,-d/2-0.14,false);
+    deck=3.2;
+    var rz0=-d/2+deck, rdep=d-deck;
+    var half=(w+0.5)/2, riseR=1.7, slope=Math.hypot(half,riseR), angR=Math.atan2(riseR,half);
+    var g1=box(slope,0.18,rdep+0.6,MAT.wood1,-half/2,h+riseR/2+0.10,rz0+rdep/2,g); g1.rotation.z= angR;
+    var g2=box(slope,0.18,rdep+0.6,MAT.wood1, half/2,h+riseR/2+0.10,rz0+rdep/2,g); g2.rotation.z=-angR;
     hitables.push(g1); hitables.push(g2);
     var shp=new THREE.Shape();
     shp.moveTo(-half,0); shp.lineTo(half,0); shp.lineTo(0,riseR); shp.closePath();
-    var gg=new THREE.ExtrudeGeometry(shp,{depth:0.24,bevelEnabled:false});
-    var e1=new THREE.Mesh(gg,shell); e1.position.set(0,h+0.10,-d/2-0.24); g.add(e1);
+    var gg=new THREE.ExtrudeGeometry(shp,{depth:0.26,bevelEnabled:false});
+    var e1=new THREE.Mesh(gg,shell); e1.position.set(0,h+0.10,rz0-0.26); g.add(e1);
     var e2=new THREE.Mesh(gg,shell); e2.position.set(0,h+0.10,d/2); g.add(e2);
-    box(0.26,0.26,d+1.0,MAT.wood1,0,h+riseR+0.10,0,g);
+    box(0.26,0.26,rdep+0.7,MAT.wood1,0,h+riseR+0.10,rz0+rdep/2,g);
   }else if(style==='stone'){                                         // the bank
     S.part(w+0.34,fh-h,0.44,shell,0,(h+fh)/2,-d/2-0.16,false);
     S.part(w+0.70,0.26,0.58,shell,0,fh-0.13,-d/2-0.20,false);        // heavy cap
@@ -683,7 +696,14 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
   }
   var bw=box(w+0.9,0.2,3.0,MAT.wood1,0,0.1,-d/2-1.6,g); bw.castShadow=false;
 
-  if(lowFront) S.blocker(0,-d/2-0.14,w+0.34,0.36,fh);   // the roof parapet, once you are up there
+  /* Roofs are platforms, so the whole street can be crossed over the tops.
+     The false front doubles as a parapet once you are up there. */
+  if(open){
+    if(deck) S.platform(0,-d/2+deck/2,w+0.30,deck,h+0.09);
+    else     S.platform(0,0,w+0.30,d+0.30,h+0.09);
+  }
+  S.blocker(0,-d/2-0.14,w+0.34,0.36,fh);
+
   var sw=Math.min(w-0.4,5.4);
   var sign=new THREE.Mesh(new THREE.PlaneGeometry(sw,sw*0.25),
     new THREE.MeshLambertMaterial({map:signTex(name,'#4b3421','#E8DCC0')}));

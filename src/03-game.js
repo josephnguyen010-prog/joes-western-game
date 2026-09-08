@@ -354,14 +354,27 @@ function updatePlayer(dt){
   var vx=(fx*iz+rx*ix)/len*spd, vz=(fz*iz+rz*ix)/len*spd;
   P.moving=damp(P.moving,Math.hypot(ix,iz)?(run?1:0.55):0,10,dt);
 
+  var ox=P.x, oz=P.z;
   var nx=P.x+vx*dt, nz=P.z+vz*dt;
   var c=collide(nx,nz,0.45,P.y); P.x=c[0]; P.z=c[1];
   if(Math.sqrt(P.x*P.x+P.z*P.z)>WORLD_R-0.6&&stateMsgT<=0) say('the wash ends at the cliffs',2);
 
+  /* Sample the floor along the stride, not just where you ended up. Running
+     up the stairs a single frame can carry you across a tread boundary, and
+     testing only the new position could miss both treads and drop you through. */
   var gy=floorAt(P.x,P.z,P.y);
-  if(P.onGround&&keys.Space){ P.vy=5.1; P.onGround=false; }
+  if(P.onGround){
+    var gy2=floorAt(ox,oz,P.y), gy3=floorAt((ox+P.x)*0.5,(oz+P.z)*0.5,P.y);
+    if(gy2>gy) gy=gy2;
+    if(gy3>gy) gy=gy3;
+  }
+  var wasOn=P.onGround;
+  if(P.onGround&&keys.Space){ P.vy=6.0; P.onGround=false; wasOn=false; }
   P.vy-=17*dt; P.y+=P.vy*dt;
   if(P.y<=gy){ P.y=gy; P.vy=0; P.onGround=true; }
+  // stepping down a tread should stay a step, not a moment of freefall
+  else if(wasOn&&P.vy<0&&P.y-gy<0.48){ P.y=gy; P.vy=0; P.onGround=true; }
+  else P.onGround=false;
 
   if(riflePickup&&!riflePickup.taken){
     riflePickup.t+=dt;
