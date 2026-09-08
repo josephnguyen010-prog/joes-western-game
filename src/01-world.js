@@ -1,6 +1,25 @@
 (function(){
 'use strict';
-if(!window.THREE){document.getElementById('loading').textContent='could not load the renderer';return;}
+
+/* Everything below lives in boot(), which is called two frames from now.
+   The build blocks the main thread for the best part of a second and the
+   loading card has to be on screen before that happens, or the first thing
+   you see is a frozen page. The expensive pieces of the build are queued as
+   stages rather than run where they stand, so the card can put a name and a
+   bar to each one. The weights are milliseconds measured on a software
+   renderer - only their ratio matters. */
+var BUILD=[], BUILT=0, BUILD_W=0;
+function stage(label,weight,fn){ BUILD.push({label:label,w:weight,fn:fn}); BUILD_W+=weight; }
+var loadTxt=document.getElementById('loadTxt'), barFill=document.getElementById('barFill');
+function setLoad(text,frac){
+  if(loadTxt) loadTxt.textContent=text;
+  if(!barFill) return;
+  barFill.style.animation='none';        // the creep hands over to real numbers
+  barFill.style.transform='scaleX('+frac.toFixed(3)+')';
+}
+
+function boot(){
+if(!window.THREE){ setLoad('could not load the renderer',0); return; }
 
 /* ============================================================
    1. small utilities
@@ -560,6 +579,28 @@ function insideBuilding(x,z){
   return false;
 }
 
+/* A handful of trades hang a shingle out over the boardwalk as well as
+   carrying a name board up on the false front. These are the ones you have to
+   go looking for - a saloon or a hotel you can see from the far end of the
+   street, but nobody knows where the doctor is until he says so. The shingle
+   hangs square to the wall, so it reads walking the boardwalk where the name
+   board reads from across the road. */
+var TRADE={
+  barber:'SHAVE & HAIRCUT', doctor:'PHYSICIAN & SURGEON', telegraph:'TELEGRAMS SENT',
+  undertaker:'COFFINS MADE', office:'ASSAYS - GOLD & SILVER', livery:'HORSES BOARDED'
+};
+function shingle(g,text,x,y,z){
+  var tex=signTex(text,'#3d2a1a','#E8DCC0');
+  for(var i=-1;i<=1;i+=2){          // two faces back to back, so it reads from either end
+    var f=new THREE.Mesh(new THREE.PlaneGeometry(1.7,0.44),
+      new THREE.MeshLambertMaterial({map:tex}));
+    f.position.set(x+i*0.02,y,z); f.rotation.y=i*Math.PI/2; g.add(f);
+  }
+  box(0.05,0.34,0.05,MAT.metal,x,y+0.39,z-0.70,g);   // the irons it swings from
+  box(0.05,0.34,0.05,MAT.metal,x,y+0.39,z+0.70,g);
+  box(0.06,0.06,1.62,MAT.metal,x,y+0.52,z,g);        // and the rail they hang off
+}
+
 function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
   var S=Structure(x,z,face), g=S.g;
   style=style||'front';
@@ -724,6 +765,8 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
     if(rnd()<0.5) poster(g,(rnd()<0.5?-1:1)*(w/2-0.3),1.55,-d/2-2.69,0,0.72);
   }
   var bw=box(w+0.9,0.2,3.0,MAT.wood1,0,0.1,-d/2-1.6,g); bw.castShadow=false;
+  // hung from the awning, clear of the door and well over head height
+  if(TRADE[kind]&&style!=='two') shingle(g,TRADE[kind],-w/2+1.6,h*0.62-0.64,-d/2-1.9);
 
   /* Roofs are platforms, so the whole street can be crossed over the tops.
      The false front doubles as a parapet once you are up there. */
@@ -733,10 +776,15 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
   }
   S.blocker(0,-d/2-0.14,w+0.34,0.36,fh);
 
+  /* The name board on the false front. A plane faces its own +z, and the
+     front of the building is local -z, so it has to be turned about to face
+     the street - without this it is hung backwards and the whole town reads
+     as unsigned. Turning the mesh rather than doubling the material keeps
+     the lettering the right way round. */
   var sw=Math.min(w-0.4,5.4);
   var sign=new THREE.Mesh(new THREE.PlaneGeometry(sw,sw*0.25),
     new THREE.MeshLambertMaterial({map:signTex(name,'#4b3421','#E8DCC0')}));
-  sign.position.set(0,h+0.74,-d/2-0.34); g.add(sign);
+  sign.position.set(0,h+0.74,-d/2-0.34); sign.rotation.y=Math.PI; g.add(sign);
   return S;
 }
 
@@ -1222,7 +1270,7 @@ function saloonRoof(bx,bz,w,d,h){
   box(0.16,0.09,2.95,MAT.wood1,lx+0.88,rY+0.98,sz-0.68);
   box(1.85,0.09,0.09,MAT.wood1,lx,rY+0.98,sz+0.76);
 }
-(function buildTown(){
+stage('raising the town',291,function buildTown(){
   var xs=-48,i,e;
   for(i=0;i<TOWN_S.length;i++){
     e=TOWN_S[i];
@@ -1239,10 +1287,10 @@ function saloonRoof(bx,bz,w,d,h){
     building(xs+e[2]/2,-14-nd/2,Math.PI,e[2],nd,nh,e[0],e[1],false,e[3],e[4]);
     xs+=e[2]+rr(1.3,2.6);
   }
-})();
+});
 
 /* --- the church: nave, gabled roof, bell tower over the door, facing the street --- */
-(function church(){
+stage('the church',5,function church(){
   var CX=-70, CZ=0, FACE=-Math.PI/2;      // front faces east, down the street
   var W=11, D=16, H=6.4, RISE=3.6;
   var S=Structure(CX,CZ,FACE), g=S.g;
@@ -1312,12 +1360,12 @@ function saloonRoof(bx,bz,w,d,h){
   var win=new THREE.Mesh(new THREE.PlaneGeometry(1.6,3.0),
     new THREE.MeshLambertMaterial({color:0x2f4a63,emissive:0x101a24,side:THREE.DoubleSide}));
   win.position.set(0,3.4,D/2-WALLT-0.02); g.add(win);
-})();
+});
 
 /* ============================================================
    8. water tower, windmill, props
    ============================================================ */
-(function tower(){
+stage('the water tower',7,function tower(){
   var g=new THREE.Group(); g.position.set(28,terrainH(28,-34),-34); world.add(g);
   var tank=new THREE.Mesh(new THREE.CylinderGeometry(3.4,3.4,5.2,16),PLANKS[2]);
   tank.position.y=12.6; tank.castShadow=true; g.add(tank); hitables.push(tank);
@@ -1330,10 +1378,10 @@ function saloonRoof(bx,bz,w,d,h){
     addBlocker(28+Math.cos(a)*2.6,-34+Math.sin(a)*2.6,0.6,0.6);
   }
   for(var b=0;b<3;b++) box(6.4,0.16,0.16,MAT.wood1,0,2.6+b*3.2,0,g).rotation.y=b*0.6;
-})();
+});
 
 var windmill=null;
-(function mill(){
+stage('the windmill',2,function mill(){
   var g=new THREE.Group(); g.position.set(-34,terrainH(-34,32),32); world.add(g);
   for(var i=0;i<4;i++){
     var a=i*Math.PI/2+Math.PI/4;
@@ -1350,7 +1398,7 @@ var windmill=null;
   }
   box(0.06,1.5,2.6,MAT.rust,0,9.9,-2.4,g);
   addBlocker(-34,32,3.4,3.4); windmill=hub;
-})();
+});
 
 function barrel(x,z){
   var m=new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.38,1.05,12),PLANKS[2]);
@@ -1461,7 +1509,7 @@ function skull(x,z){
   var h2=h1.clone(); h2.position.x=0.2; h2.rotation.z=0.5+Math.PI; g.add(h2);
 }
 
-(function dressTheSet(){
+stage('barrels, crates and cactus',80,function dressTheSet(){
   var i;
   for(i=0;i<7;i++) barrel(rr(-40,40),(rnd()<0.5?1:-1)*rr(10.6,12.2));
   for(i=0;i<8;i++) crate(rr(-42,42),(rnd()<0.5?1:-1)*rr(10.6,12.4));
@@ -1496,9 +1544,9 @@ function skull(x,z){
     rock(cbx,cbz,rr(2.4,4.6),MAT.cliff,true);
     if(rnd()<0.6) rock(cbx+rr(-3,3),cbz+rr(-3,3),rr(1.2,2.2),MAT.cliff,true);
   }
-})();
+});
 
-(function scrub(){
+stage('scrub on the flats',4,function scrub(){
   var mesh=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.5,0),MAT.sage,260);
   var d=new THREE.Object3D();
   var placed=0, guard=0;
@@ -1514,7 +1562,7 @@ function skull(x,z){
   }
   mesh.count=placed;
   mesh.castShadow=true; world.add(mesh);
-})();
+});
 
 var dust=(function(){
   var n=1400,pos=new Float32Array(n*3);
@@ -1526,7 +1574,7 @@ var dust=(function(){
 })();
 
 var weeds=[];
-(function(){
+stage('weeds along the street',24,function scatterWeeds(){
   var twig=new THREE.MeshLambertMaterial({color:0x8E7647});
   var twig2=new THREE.MeshLambertMaterial({color:0x6E5A38});
   function tumbleweed(){
@@ -1555,4 +1603,4 @@ var weeds=[];
     world.add(tw.g);
     weeds.push({m:tw.g,r:tw.r,vx:rr(2.5,6.5),vz:rr(-1.4,1.4),spin:rr(-1,1)});
   }
-})();
+});

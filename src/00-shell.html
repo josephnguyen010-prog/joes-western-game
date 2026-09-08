@@ -146,8 +146,20 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
 .stats b{display:block;font-family:var(--display);font-size:30px;line-height:1.15;font-variant-numeric:tabular-nums}
 .stats span{font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.7}
 .note{font-size:11px;opacity:.62;margin-top:16px;letter-spacing:.04em;line-height:1.5}
-#loading{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);font-size:12px;letter-spacing:.24em;
-  text-transform:uppercase;color:var(--bone-dim)}
+/* The bar fills by scaleX rather than width: a transform animates on the
+   compositor, so it keeps gliding through the frames where the build has the
+   main thread and a width transition would sit still. */
+#bar{height:15px;margin:22px 0 15px;border:2px solid #1E1611;background:rgba(30,22,17,.10)}
+#bar i{display:block;height:100%;background:#1E1611;transform:scaleX(0);transform-origin:0 50%;
+  transition:transform .55s cubic-bezier(.32,0,.16,1);
+  animation:crawl 9s cubic-bezier(.15,.85,.3,1) forwards}
+/* Until the renderer is down off the wire there is nothing real to report, so
+   the bar creeps. The script kills the animation the moment it has a number. */
+@keyframes crawl{from{transform:scaleX(0)}to{transform:scaleX(.10)}}
+#loadTxt{font-size:12px;letter-spacing:.2em;text-transform:uppercase;opacity:.78;min-height:1.5em;margin:0}
+#load{transition:opacity .5s ease}
+#load.fade{opacity:0}
+@media (prefers-reduced-motion:reduce){#bar i{transition:none;animation:none}#load{transition:none}}
 @media (prefers-reduced-motion:reduce){#grain{animation:none}}
 @media (max-width:680px){#compass,#feed{display:none}#cyl{width:70px;height:70px}#cyl u{width:14px;height:14px;margin:-7px}}
 </style>
@@ -179,7 +191,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     <button id="menuBtn" type="button">Esc &middot; menu</button>
   </div>
 
-  <div class="card" id="title">
+  <div class="card gone" id="title">
     <div class="sheet">
       <div class="eyebrow">Cimarron County &middot; No Man&rsquo;s Land &middot; April 1889</div>
       <h1>Joe&rsquo;s Wild West Game</h1>
@@ -244,7 +256,17 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     </div>
   </div>
 
-  <div id="loading">building the town&hellip;</div>
+  <div class="card" id="load">
+    <div class="sheet">
+      <div class="eyebrow">Cimarron County &middot; No Man&rsquo;s Land &middot; April 1889</div>
+      <h1>Joe&rsquo;s Wild West Game</h1>
+      <div class="rule dbl"></div>
+      <div id="bar"><i id="barFill"></i></div>
+      <p id="loadTxt">loading the renderer&hellip;</p>
+      <p class="note">Everything here is generated in code &mdash; no image files, no audio
+        files. It is all being built now, which is what the bar is counting.</p>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

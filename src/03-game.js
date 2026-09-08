@@ -322,6 +322,13 @@ function collide(px,pz,r,feet,bigOnly){
   return [px,pz];
 }
 
+/* Is a wagon-sized box at this spot clear of anything solid? Only the big
+   blockers count, the same ones the wagon itself collides against. */
+function carClear(x,z){
+  var c=collide(x,z,2.2,0,true);
+  return Math.abs(c[0]-x)<0.001&&Math.abs(c[1]-z)<0.001;
+}
+
 function updatePlayer(dt){
   // look
   var sens=0.0021*(camera.fov/74);
@@ -407,14 +414,20 @@ function updateGun(dt){
   cylGroup.rotation.z=damp(cylGroup.rotation.z,-P.cylIndex*(TAU/6),16,dt);
   gateG.rotation.y=damp(gateG.rotation.y,P.reloading?-1.35:0,14,dt);   // the gate swings open
   for(var ri=0;ri<rounds.length;ri++) rounds[ri].visible=ri<P.ammo;
-  hammer.rotation.x=damp(hammer.rotation.x,(P.ammo>0?0.42:0.06)+P.recoil*0.45,13,dt);
+  // Cocked, it lies back far enough to drop under the sight line; down on a
+  // spent chamber it stands almost upright.
+  hammer.rotation.x=damp(hammer.rotation.x,(P.ammo>0?0.68:0.06)+P.recoil*0.45,13,dt);
 
   var aim=adsOn(), aimBob=aim?0.35:1;
   var bobY=Math.sin(P.bob)*0.012*P.moving*aimBob, bobX=Math.cos(P.bob*0.5)*0.010*P.moving*aimBob;
-  // hip pose, or up on the sights: barrel centred, rear notch on the front blade
+  /* Hip pose, or up on the sights. Aiming puts the gun on the centreline and
+     drops it by 0.039 - the height of the sight line off the bore - so the
+     rear notch and the front blade both land on the middle of the screen,
+     which is where the shot goes. Held out at 0.36 rather than up at 0.30:
+     any closer and the frame swallows half the street. */
   var tx=(aim?0.000:0.145)+bobX+P.sway*(aim?0.02:0.06);
-  var ty=(aim?-0.034:-0.075)+bobY+P.swayY*(aim?0.02:0.05);
-  var tz=(aim?-0.300:-0.390)+P.recoil*0.075;
+  var ty=(aim?-0.039:-0.075)+bobY+P.swayY*(aim?0.02:0.05);
+  var tz=(aim?-0.400:-0.390)+P.recoil*0.075;
   var rx=P.recoil*0.55, rz=aim?0:-0.05, ry=aim?0:0.20;
   if(P.reloading){                                   // gun rolls over to the loading gate
     var need=6-P.reloadFrom, total=0.34+need*0.26+0.42;
@@ -662,6 +675,19 @@ function updateCar(dt){
   }
   var off=angWrap(Math.atan2(tx,tz)-car.yaw);
 
+  /* He looks a wagon length up the road rather than driving by touch. If the
+     pole is aimed at something solid he probes to either side and takes the
+     clear one, which is what keeps him off the windmill on the turn into the
+     south lane - the corner there is cut fine enough that the old line went
+     straight through its legs. */
+  var avoid=0;
+  if(!carClear(car.x+Math.sin(car.yaw)*7.0,car.z+Math.cos(car.yaw)*7.0)){
+    var la=car.yaw-0.7, ra=car.yaw+0.7;
+    var lOK=carClear(car.x+Math.sin(la)*7.0,car.z+Math.cos(la)*7.0);
+    var rOK=carClear(car.x+Math.sin(ra)*7.0,car.z+Math.cos(ra)*7.0);
+    avoid=(lOK&&!rOK)?-1:((rOK&&!lOK)?1:(off<0?-1:1));
+  }
+
   /* He slows for the corner he can see coming, not the one he is already in:
      the angle between this leg and the next, weighted by how close he is. */
   var corner=Math.abs(angWrap(Math.atan2(nw[0]-wp[0],nw[1]-wp[1])-Math.atan2(tx,tz)));
@@ -672,9 +698,21 @@ function updateCar(dt){
   // backing out of a jam
   if(car.rev>0){
     car.rev-=dt; want=-3.2;
-    if(car.rev<=0){ car.stuck=0; car.wp=(car.wp+1)%ROUTE.length; }
+    /* Backing out, he takes his bearing from the nearest waypoint rather than
+       the next one along. Stepping the route while off it was what turned one
+       bump into a tour of the back lots: every jam advanced the target, and
+       the new target was across somebody's building. */
+    if(car.rev<=0){
+      car.stuck=0;
+      var best=car.wp, bd=1e9;
+      for(var wi=0;wi<ROUTE.length;wi++){
+        var wdx=ROUTE[wi][0]-car.x, wdz=ROUTE[wi][1]-car.z, wd=wdx*wdx+wdz*wdz;
+        if(wd<bd){ bd=wd; best=wi; }
+      }
+      car.wp=best;
+    }
   }
-  car.steer=damp(car.steer,car.rev>0?-car.escape:clamp(off*1.9,-1,1),7,dt);
+  car.steer=damp(car.steer,car.rev>0?-car.escape:clamp(off*1.9+avoid*1.5,-1,1),7,dt);
 
   var s=car.speed;
   s+=clamp(want-s,-1,1)*7.0*dt;
@@ -1008,6 +1046,31 @@ $('showKeys').addEventListener('click',function(){
   $('showKeys').textContent=k.hidden?'Controls':'Hide controls';
 });
 
-$('loading').style.display='none';
-requestAnimationFrame(frame);
+/* Work through the queued stages a frame apart. The label goes up before the
+   work it names rather than after, because that work blocks the frame it runs
+   in - so by the time the browser paints the label, the stage it names is the
+   one under way. Nothing is clickable until the last of them is done. */
+function runBuild(){
+  if(!BUILD.length){
+    setLoad('ready',1);
+    requestAnimationFrame(frame);
+    setTimeout(function(){
+      $('title').classList.remove('gone');
+      $('load').classList.add('fade');
+      setTimeout(function(){ $('load').classList.add('gone'); },520);
+    },400);
+    return;
+  }
+  var s=BUILD[0];
+  setLoad(s.label,0.12+0.88*(BUILT/BUILD_W));
+  requestAnimationFrame(function(){
+    BUILD.shift(); s.fn(); BUILT+=s.w;
+    runBuild();
+  });
+}
+runBuild();
+}
+
+setLoad('mixing the paint…',0.12);
+requestAnimationFrame(function(){ requestAnimationFrame(boot); });
 })();

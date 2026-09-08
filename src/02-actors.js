@@ -124,7 +124,7 @@ var hammer,flash,gateG,rounds=[];
 /* A Colt Single Action Army at life size: 7.5in barrel, 42mm cylinder,
    blued barrel and cylinder against a case-hardened frame, steel grip
    frame and trigger guard, one-piece walnut grips flaring to the butt. */
-(function buildGun(){
+stage('the Colt',7,function buildGun(){
   function gb(w,h,d,mat,x,y,z,p){var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);(p||gun).add(m);return m;}
   function gc(r1,r2,len,seg,mat,x,y,z,axis,p){
     var m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,len,seg),mat);
@@ -135,7 +135,12 @@ var hammer,flash,gateG,rounds=[];
   gb(0.032,0.050,0.028,CASE,0,0.002,0.040);                   // standing breech
   gc(0.023,0.023,0.011,18,CASE,0,0.000,0.028,'z');            // recoil shield
   gb(0.024,0.010,0.072,CASE,0,0.029,0.006);                   // top strap
-  gb(0.014,0.005,0.070,BLUE,0,0.034,0.006);                   // sighting groove down the strap
+  /* The rear sight is the notch between these two shoulders. You line the top
+     of the front blade up with the top of the shoulders, not with the floor of
+     the notch, so the sight line is y=0.039 - the height the aim pose puts the
+     eye at, and the height the front blade is built to. */
+  gb(0.0043,0.005,0.070,BLUE,-0.0052,0.0365,0.006);           // strap shoulder, left of the notch
+  gb(0.0043,0.005,0.070,BLUE, 0.0052,0.0365,0.006);           // and right
   gb(0.028,0.021,0.062,CASE,0,-0.026,0.014);                  // bottom rail
   gb(0.030,0.050,0.014,CASE,0,0.002,-0.032);                  // front frame post
   gc(0.0030,0.0030,0.034,8,STEEL,0,-0.020,0.038,'x');         // frame screws
@@ -147,7 +152,7 @@ var hammer,flash,gateG,rounds=[];
   // --- barrel, blued, in line with the top chamber ---
   gc(0.0118,0.0100,0.190,16,BLUE,0,0.0125,-0.126,'z');
   gb(0.009,0.006,0.150,BLUE,0,0.0215,-0.120);                 // sight rib
-  gb(0.005,0.012,0.009,BLUE,0,0.0255,-0.209);                 // front sight blade
+  gb(0.005,0.012,0.009,BLUE,0,0.0330,-0.209);                 // front sight blade, its top level with the shoulders
   /* The ejector rod housing rides UNDER the barrel at about four o'clock,
      tucked slightly to the right - not out on the flank. Offsetting it
      0.0137 down and 0.0068 right leaves it overlapping the barrel by 5mm,
@@ -196,9 +201,12 @@ var hammer,flash,gateG,rounds=[];
   gb(0.038,0.010,0.036,STEEL,0,-0.055,0.006,lowG);            // butt cap
   gc(0.0024,0.0024,0.032,8,STEEL,0,-0.022,0.000,'x',lowG);    // grip screw
 
-  /* The hammer: a wide checkered spur sweeping up and back, which is most
-     of what makes the profile read as a Colt. */
-  hammer=new THREE.Group(); hammer.position.set(0,0.024,0.046); gun.add(hammer);
+  /* The hammer: a checkered spur sweeping up and back. It is built at full
+     size and then scaled on its pin, because at full size the spur stands a
+     good 4cm over the top strap and sits square in the middle of the sight
+     picture - the one thing you must be able to see past when aiming. */
+  hammer=new THREE.Group(); hammer.position.set(0,0.013,0.046);
+  hammer.scale.setScalar(0.46); gun.add(hammer);
   gb(0.011,0.036,0.013,CASE,0,0.016,0.003,hammer);            // hammer body
   gb(0.013,0.014,0.012,CASE,0,0.033,0.007,hammer);            // the throat of the spur
   var spur=gb(0.018,0.011,0.030,CASE,0,0.040,0.019,hammer); spur.rotation.x=0.72;
@@ -220,7 +228,7 @@ var hammer,flash,gateG,rounds=[];
   gunRig.add(gun); gunScene.add(gunRig);
   gunRig.position.set(0.145,-0.075,-0.39);
   gunRig.rotation.y=0.20;
-})();
+});
 
 /* ============================================================
    10b. the Springfield, as you carry it
@@ -272,7 +280,7 @@ function springfield(R,detail){
   }
   return R;
 }
-(function buildRifle(){
+stage('the Springfield',6,function buildRifle(){
   var R=new THREE.Group();
   springfield(R,true);
   var fm=new THREE.MeshBasicMaterial({color:0xFFD98A,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide});
@@ -287,7 +295,7 @@ function springfield(R,detail){
   rifleRig.position.set(0.115,-0.110,-0.40);
   rifleRig.rotation.y=0.09;
   rifleRig.visible=false;
-})();
+});
 
 /* a Springfield lying where its owner left it */
 function makeRiflePickup(x,y,z){
@@ -502,7 +510,8 @@ function wheelMesh(r){
   return W;
 }
 
-var car=(function(){
+var car=null;
+stage('hitching the team',13,function(){ car=(function(){
   var g=new THREE.Group();
   function cb(w,h,d,m,x,y,z,p){var q=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);q.position.set(x,y,z);q.castShadow=true;(p||g).add(q);return q;}
 
@@ -566,4 +575,4 @@ var car=(function(){
   return {g:g,wheels:wheels,pivots:pivots,horses:horses,driver:driver,
           x:25,z:-39,yaw:-Math.PI/2,speed:6,steer:0,occupied:false,gait:0,beat:1,
           wp:4,hurry:1,stuck:0,rev:0,escape:1};
-})();
+})(); });
