@@ -94,6 +94,7 @@ body.cursoraim.playing #app{cursor:none}
 @keyframes spin{from{transform:rotate(-60deg)}to{transform:rotate(0)}}
 #ammoTxt{text-align:right;padding-bottom:6px}
 #ammoTxt .val{font-size:30px}
+#ammoOf{font-size:16px;color:var(--bone-dim);letter-spacing:.02em}
 
 #feed{position:absolute;right:18px;top:178px;width:250px;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
 #feed div{font-size:12px;color:var(--bone);letter-spacing:.05em;background:rgba(20,16,14,.66);
@@ -169,7 +170,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     <div class="panel" id="notches"><span class="lbl">Notches cut</span><div id="tally"></div></div>
     <div class="panel" id="grit"><span class="lbl">Grit</span><div id="bars"></div><div id="state"></div></div>
     <div id="gunhud">
-      <div id="ammoTxt"><div class="val" id="ammoN">6</div><span class="lbl" id="cal">.45 Colt</span></div>
+      <div id="ammoTxt"><div class="val"><span id="ammoN">6</span><span id="ammoOf"> / 6</span></div><span class="lbl" id="cal">.45 Colt</span></div>
       <div id="cyl"></div>
     </div>
     <div id="feed"></div>
@@ -190,7 +191,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
         <div><span>Left click</span><span>fire</span></div>
         <div><span>Right hold</span><span>aim down the sights</span></div>
         <div><span>R</span><span>reload</span></div>
-        <div><span>F</span><span>take the wagon</span></div>
+        <div><span>F</span><span>ride the wagon / get down</span></div>
         <div><span>Esc</span><span>pause, and the rest of the keys</span></div>
       </div>
       <button class="go" id="start">Step into the street</button>
@@ -215,7 +216,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
         <div><span>R</span><span>reload, one round at a time</span></div>
         <div><span>1 / 2</span><span>Colt / Springfield rifle</span></div>
         <div><span>Z</span><span>sticky aim</span></div>
-        <div><span>F</span><span>up on the wagon seat / down</span></div>
+        <div><span>F</span><span>ride the wagon / get down</span></div>
         <div><span>Esc</span><span>this menu</span></div>
       </div>
       <div class="btnrow">

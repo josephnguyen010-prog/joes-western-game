@@ -119,7 +119,7 @@ var BRASSY=new THREE.MeshStandardMaterial({color:0xC9A24A,metalness:0.90,roughne
 var gun=new THREE.Group();
 var gunRig=new THREE.Group();   // holds recoil and aim motion
 var cylGroup=new THREE.Group();
-var hammer,flash;
+var hammer,flash,gateG,rounds=[];
 
 /* A Colt Single Action Army at life size: 7.5in barrel, 42mm cylinder,
    blued barrel and cylinder against a case-hardened frame, steel grip
@@ -141,7 +141,8 @@ var hammer,flash;
   gc(0.0030,0.0030,0.034,8,STEEL,0,-0.020,0.038,'x');         // frame screws
   gc(0.0030,0.0030,0.034,8,STEEL,0,0.006,0.046,'x');
   gc(0.0026,0.0026,0.034,8,STEEL,0,-0.030,0.062,'x');
-  gb(0.009,0.026,0.024,CASE,0.019,0.002,0.034).rotation.y=-0.12;   // loading gate
+  gateG=new THREE.Group(); gateG.position.set(0.0145,0.002,0.026); gun.add(gateG);
+  gb(0.009,0.026,0.024,CASE,0.0055,0,0.008,gateG);            // loading gate, on its hinge
 
   // --- barrel, blued, in line with the top chamber ---
   gc(0.0118,0.0100,0.190,16,BLUE,0,0.0125,-0.126,'z');
@@ -165,6 +166,9 @@ var hammer,flash;
     var fl=gb(0.012,0.005,0.030,MAT.dark,Math.cos(a)*0.0187,Math.sin(a)*0.0187,-0.002,cylGroup);
     fl.rotation.z=a+Math.PI/2;                                 // flutes, sunk flush
     gc(0.0055,0.0055,0.044,8,MAT.dark,Math.cos(a+0.5236)*0.0125,Math.sin(a+0.5236)*0.0125,0,'z',cylGroup);
+    // a cartridge head showing at the back of each loaded chamber
+    var rd=gc(0.0053,0.0053,0.007,8,BRASSY,Math.cos(a+0.5236)*0.0125,Math.sin(a+0.5236)*0.0125,0.019,'z',cylGroup);
+    rounds.push(rd);
   }
   cylGroup.position.set(0,0,-0.004); gun.add(cylGroup);
 
@@ -554,6 +558,10 @@ var car=(function(){
 
   g.position.set(14,terrainH(14,6.5),6.5); g.rotation.y=-0.5;
   world.add(g);
-  return {g:g,wheels:wheels,pivots:pivots,horses:horses,
-          x:14,z:6.5,yaw:-0.5,speed:0,steer:0,occupied:false,gait:0,beat:1};
+  // the driver, sitting the seat with the lines in both hands
+  var driver=person(g,0,0.99,0.62,0,{coat:0x4C3E2E,shirt:0xCBBEA4,vest:0x3A3128,
+                                     hat:'slouch',seated:1,reins:1});
+  return {g:g,wheels:wheels,pivots:pivots,horses:horses,driver:driver,
+          x:14,z:6.5,yaw:-0.5,speed:0,steer:0,occupied:false,gait:0,beat:1,
+          wp:0,hurry:1,stuck:0};
 })();

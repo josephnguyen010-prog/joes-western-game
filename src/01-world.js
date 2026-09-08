@@ -750,7 +750,7 @@ function person(g,x,y,z,yaw,cfg){
   }
   G.traverse(function(o){ if(o.isMesh){ o.castShadow=false; } });
   var f={g:G,head:head,armL:armL,armR:armR,baseY:y,ph:rr(0,TAU),
-         wipe:!!cfg.wipe,play:!!cfg.play,scare:0,seated:seated};
+         wipe:!!cfg.wipe,play:!!cfg.play,reins:!!cfg.reins,scare:0,seated:seated};
   folk.push(f);
   return f;
 }

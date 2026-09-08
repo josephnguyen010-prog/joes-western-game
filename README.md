@@ -21,7 +21,7 @@ Everything you see is generated in code at load time. There are no image files, 
 | R | Reload the Colt, one round at a time through the gate |
 | 1 / 2 | Colt / Springfield rifle |
 | Z | Sticky aim, if you prefer a toggle |
-| F | Up on the wagon seat, or down |
+| F | Ride the wagon, or get down |
 | Q / E, arrows | Turn |
 | Esc | Pause menu — resume, full control list, or quit |
 
@@ -43,7 +43,7 @@ Pointer lock is used where the browser allows it: the cursor disappears and the 
 
 **The rifleman.** A man with that Springfield stands on the Occidental roof. He tracks you, and about a second before he fires the brass catches the sun — that glint is your cue to move or get inside. Put him down and his rifle stays up there; take the stairs behind the saloon and it's yours.
 
-**A team and a buckboard.** Two horses in collar harness pulling a plank wagon with iron-tyred spoked wheels. They trot on diagonal pairs, bob their heads with the stride and swish their tails, and the hoofbeats quicken as you push them. You drive from the seat, in first person, with the reins in view.
+**A team and a buckboard.** Two horses in collar harness pulling a plank wagon with iron-tyred spoked wheels, with a driver on the box holding the lines. It runs a circuit of the town on its own; flag it down and ride in the bed. The team trots on diagonal pairs, bobs their heads with the stride and swishes their tails, and the hoofbeats quicken when the driver puts the whip on - which he does as soon as shooting starts.
 
 **The world.** A bowl 176 metres across with cliffs at the edge, a dry wash running east and west across the north, saguaro, prickly pear, barrel cactus, ocotillo and yucca, tumbleweeds built from forty-six dry twigs apiece, a drifting cloud dome and a sun hanging where the light actually comes from.
 

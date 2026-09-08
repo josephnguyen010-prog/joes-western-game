@@ -107,6 +107,7 @@ body.cursoraim.playing #app{cursor:none}
 @keyframes spin{from{transform:rotate(-60deg)}to{transform:rotate(0)}}
 #ammoTxt{text-align:right;padding-bottom:6px}
 #ammoTxt .val{font-size:30px}
+#ammoOf{font-size:16px;color:var(--bone-dim);letter-spacing:.02em}
 
 #feed{position:absolute;right:18px;top:178px;width:250px;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
 #feed div{font-size:12px;color:var(--bone);letter-spacing:.05em;background:rgba(20,16,14,.66);
@@ -182,7 +183,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     <div class="panel" id="notches"><span class="lbl">Notches cut</span><div id="tally"></div></div>
     <div class="panel" id="grit"><span class="lbl">Grit</span><div id="bars"></div><div id="state"></div></div>
     <div id="gunhud">
-      <div id="ammoTxt"><div class="val" id="ammoN">6</div><span class="lbl" id="cal">.45 Colt</span></div>
+      <div id="ammoTxt"><div class="val"><span id="ammoN">6</span><span id="ammoOf"> / 6</span></div><span class="lbl" id="cal">.45 Colt</span></div>
       <div id="cyl"></div>
     </div>
     <div id="feed"></div>
@@ -203,7 +204,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
         <div><span>Left click</span><span>fire</span></div>
         <div><span>Right hold</span><span>aim down the sights</span></div>
         <div><span>R</span><span>reload</span></div>
-        <div><span>F</span><span>take the wagon</span></div>
+        <div><span>F</span><span>ride the wagon / get down</span></div>
         <div><span>Esc</span><span>pause, and the rest of the keys</span></div>
       </div>
       <button class="go" id="start">Step into the street</button>
@@ -228,7 +229,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
         <div><span>R</span><span>reload, one round at a time</span></div>
         <div><span>1 / 2</span><span>Colt / Springfield rifle</span></div>
         <div><span>Z</span><span>sticky aim</span></div>
-        <div><span>F</span><span>up on the wagon seat / down</span></div>
+        <div><span>F</span><span>ride the wagon / get down</span></div>
         <div><span>Esc</span><span>this menu</span></div>
       </div>
       <div class="btnrow">
@@ -1013,7 +1014,7 @@ function person(g,x,y,z,yaw,cfg){
   }
   G.traverse(function(o){ if(o.isMesh){ o.castShadow=false; } });
   var f={g:G,head:head,armL:armL,armR:armR,baseY:y,ph:rr(0,TAU),
-         wipe:!!cfg.wipe,play:!!cfg.play,scare:0,seated:seated};
+         wipe:!!cfg.wipe,play:!!cfg.play,reins:!!cfg.reins,scare:0,seated:seated};
   folk.push(f);
   return f;
 }
@@ -1888,7 +1889,7 @@ var BRASSY=new THREE.MeshStandardMaterial({color:0xC9A24A,metalness:0.90,roughne
 var gun=new THREE.Group();
 var gunRig=new THREE.Group();   // holds recoil and aim motion
 var cylGroup=new THREE.Group();
-var hammer,flash;
+var hammer,flash,gateG,rounds=[];
 
 /* A Colt Single Action Army at life size: 7.5in barrel, 42mm cylinder,
    blued barrel and cylinder against a case-hardened frame, steel grip
@@ -1910,7 +1911,8 @@ var hammer,flash;
   gc(0.0030,0.0030,0.034,8,STEEL,0,-0.020,0.038,'x');         // frame screws
   gc(0.0030,0.0030,0.034,8,STEEL,0,0.006,0.046,'x');
   gc(0.0026,0.0026,0.034,8,STEEL,0,-0.030,0.062,'x');
-  gb(0.009,0.026,0.024,CASE,0.019,0.002,0.034).rotation.y=-0.12;   // loading gate
+  gateG=new THREE.Group(); gateG.position.set(0.0145,0.002,0.026); gun.add(gateG);
+  gb(0.009,0.026,0.024,CASE,0.0055,0,0.008,gateG);            // loading gate, on its hinge
 
   // --- barrel, blued, in line with the top chamber ---
   gc(0.0118,0.0100,0.190,16,BLUE,0,0.0125,-0.126,'z');
@@ -1934,6 +1936,9 @@ var hammer,flash;
     var fl=gb(0.012,0.005,0.030,MAT.dark,Math.cos(a)*0.0187,Math.sin(a)*0.0187,-0.002,cylGroup);
     fl.rotation.z=a+Math.PI/2;                                 // flutes, sunk flush
     gc(0.0055,0.0055,0.044,8,MAT.dark,Math.cos(a+0.5236)*0.0125,Math.sin(a+0.5236)*0.0125,0,'z',cylGroup);
+    // a cartridge head showing at the back of each loaded chamber
+    var rd=gc(0.0053,0.0053,0.007,8,BRASSY,Math.cos(a+0.5236)*0.0125,Math.sin(a+0.5236)*0.0125,0.019,'z',cylGroup);
+    rounds.push(rd);
   }
   cylGroup.position.set(0,0,-0.004); gun.add(cylGroup);
 
@@ -2323,8 +2328,12 @@ var car=(function(){
 
   g.position.set(14,terrainH(14,6.5),6.5); g.rotation.y=-0.5;
   world.add(g);
-  return {g:g,wheels:wheels,pivots:pivots,horses:horses,
-          x:14,z:6.5,yaw:-0.5,speed:0,steer:0,occupied:false,gait:0,beat:1};
+  // the driver, sitting the seat with the lines in both hands
+  var driver=person(g,0,0.99,0.62,0,{coat:0x4C3E2E,shirt:0xCBBEA4,vest:0x3A3128,
+                                     hat:'slouch',seated:1,reins:1});
+  return {g:g,wheels:wheels,pivots:pivots,horses:horses,driver:driver,
+          x:14,z:6.5,yaw:-0.5,speed:0,steer:0,occupied:false,gait:0,beat:1,
+          wp:0,hurry:1,stuck:0};
 })();
 
 /* ============================================================
@@ -2338,14 +2347,14 @@ var P={x:-34,z:0,y:0,vy:0,yaw:-Math.PI/2,pitch:-0.02,onGround:true,ammo:6,
        reloading:false,reloadT:0,reloadFrom:6,nextRound:0,recoil:0,bob:0,sway:0,swayY:0,
        inCar:false,moving:0,hurtT:0,fireHeld:false,cockT:0,
        weapon:'colt',hasRifle:false,rifleAmmo:0,rifleWork:0,rifleClicked:false,
-       ads:false,adsHold:false};
+       ads:false,adsHold:false,cylIndex:0,onWagon:false};
 var EYE=1.66;
 
 var ui={
   hud:$('hud'),left:$('left'),wave:$('wave'),objtxt:$('objtxt'),clock:$('clock'),
   tally:$('tally'),bars:$('bars'),state:$('state'),ammoN:$('ammoN'),cyl:$('cyl'),
   feed:$('feed'),prompt:$('prompt'),cross:$('cross'),mark:$('mark'),hurt:$('hurt'),strip:$('strip'),
-  cal:$('cal'),scope:$('scope'),pause:$('pause')
+  cal:$('cal'),scope:$('scope'),pause:$('pause'),ammoOf:$('ammoOf')
 };
 (function initHud(){
   var i,b;
@@ -2574,6 +2583,7 @@ function castShot(spread,bodyDmg,headDmg,far){
     var fp=folk[k].g.getWorldPosition(_v4);
     if(Math.abs(fp.x-P.x)<22&&Math.abs(fp.z-P.z)<22) folk[k].scare=2.4;
   }
+  if(Math.hypot(car.x-P.x,car.z-P.z)<30) car.hurry=1.75;   // the driver puts the whip on
   return origin;
 }
 
@@ -2598,7 +2608,7 @@ function fire(){
   AU.shot(0);
   flash.m.opacity=1; flash.g.rotation.z=rr(0,TAU); flash.g.scale.setScalar(rr(0.8,1.25));
   muzzleLight.intensity=4.5; worldFlash.intensity=3.4;
-  cylGroup.rotation.z-=TAU/6;
+  P.cylIndex++;
   var org=castShot((adsOn()?0.0016:0.0042)+P.moving*0.010+P.recoil*0.012+(P.inCar?0.012:0),58,140,220);
   FX.eject(org.addScaledVector(_v3,0.22).add(new THREE.Vector3(0,-0.12,0)),_v3,new THREE.Vector3(0,1,0));
 }
@@ -2607,15 +2617,17 @@ function startReload(){
   if(GAME.state!=='play'||P.weapon!=='colt'||P.reloading||P.ammo>=6)return;
   P.reloading=true; P.reloadT=0; P.reloadFrom=P.ammo; P.nextRound=0.34;
   AU.click(0.24);
-  say('loading '+(6-P.ammo)+' rounds',1.6);
+  say('loading '+(6-P.ammo)+(P.ammo===5?' round':' rounds'),1.6);
 }
 function reloadStep(dt){
   if(!P.reloading)return;
   P.reloadT+=dt;
-  var need=6-P.reloadFrom, total=0.34+need*0.26+0.42;
-  if(P.reloadT>=P.nextRound&&P.ammo<6&&P.reloadT<0.34+need*0.26){
-    P.ammo++; P.nextRound+=0.26; AU.clink();
-    if(ui.cyl.classList){ ui.cyl.classList.remove('spin'); void ui.cyl.offsetWidth; ui.cyl.classList.add('spin'); }
+  var need=6-P.reloadFrom, lastAt=0.34+(need-1)*0.26, total=lastAt+0.52;
+  /* A while loop, gated on the round's own schedule rather than on the clock:
+     a long frame used to step straight over a round's window and drop it. */
+  while(P.ammo<6&&P.nextRound<=lastAt+0.0001&&P.reloadT>=P.nextRound){
+    P.ammo++; P.cylIndex++; P.nextRound+=0.26; AU.clink();
+    ui.cyl.classList.remove('spin'); void ui.cyl.offsetWidth; ui.cyl.classList.add('spin');
   }
   if(P.reloadT>=total){ P.reloading=false; P.ammo=6; AU.click(0.3); }
 }
@@ -2713,7 +2725,9 @@ function updateGun(dt){
   flash.m.opacity=Math.max(0,flash.m.opacity-dt*14);
   muzzleLight.intensity=Math.max(0,muzzleLight.intensity-dt*40);
   worldFlash.intensity=Math.max(0,worldFlash.intensity-dt*30);
-  cylGroup.rotation.z=damp(cylGroup.rotation.z,Math.round(cylGroup.rotation.z/(TAU/6))*(TAU/6),14,dt);
+  cylGroup.rotation.z=damp(cylGroup.rotation.z,-P.cylIndex*(TAU/6),16,dt);
+  gateG.rotation.y=damp(gateG.rotation.y,P.reloading?-1.35:0,14,dt);   // the gate swings open
+  for(var ri=0;ri<rounds.length;ri++) rounds[ri].visible=ri<P.ammo;
   hammer.rotation.x=damp(hammer.rotation.x,(P.ammo>0?0.42:0.06)+P.recoil*0.45,13,dt);
 
   var aim=adsOn(), aimBob=aim?0.35:1;
@@ -2726,8 +2740,7 @@ function updateGun(dt){
   if(P.reloading){                                   // gun rolls over to the loading gate
     var need=6-P.reloadFrom, total=0.34+need*0.26+0.42;
     var u=clamp(P.reloadT/0.30,0,1)*clamp((total-P.reloadT)/0.34,0,1);
-    rz=-1.15*u; rx-=0.35*u; ry=0.10+0.55*u; ty-=0.075*u; tx-=0.035*u;
-    cylGroup.rotation.z-=dt*2.2*u;
+    rz=-1.32*u; rx-=0.30*u; ry=0.62*u; ty-=0.085*u; tx-=0.045*u;
   }
   if(cursorAim&&!aim){
     var cnx=clamp((curX/window.innerWidth)*2-1,-1,1);
@@ -2779,7 +2792,9 @@ function updateFolk(dt){
     f.g.position.y=f.baseY+Math.sin(GAME.t*1.15+f.ph)*0.012;
     f.head.rotation.y=Math.sin(GAME.t*0.42+f.ph)*0.38;
     f.head.rotation.x=Math.sin(GAME.t*0.7+f.ph)*0.06;
-    if(f.wipe){ f.armR.rotation.x=-1.15+Math.sin(GAME.t*2.4+f.ph)*0.40; f.armL.rotation.x=-0.25; }
+    if(f.reins){ f.armR.rotation.x=-1.28+Math.sin(GAME.t*1.7+f.ph)*0.06;
+                 f.armL.rotation.x=-1.22+Math.sin(GAME.t*1.7+f.ph+1)*0.06; }
+    else if(f.wipe){ f.armR.rotation.x=-1.15+Math.sin(GAME.t*2.4+f.ph)*0.40; f.armL.rotation.x=-0.25; }
     else if(f.play){ f.armR.rotation.x=-1.32+Math.sin(GAME.t*7+f.ph)*0.10;
                      f.armL.rotation.x=-1.32+Math.sin(GAME.t*7+f.ph+1.6)*0.10; }
     else { f.armR.rotation.x=Math.sin(GAME.t*0.9+f.ph)*0.07;
@@ -2941,50 +2956,55 @@ function updateEnemies(dt){
 /* ============================================================
    17. the Ford, driven
    ============================================================ */
+/* The stage runs a circuit of the town on its own. You flag it down and
+   ride in the bed; the driver does the work. */
+var ROUTE=[[44,0],[-44,0],[-58,-14],[-58,-38],[10,-46],[46,-34],[54,-10]];
+
 function toggleCar(){
   if(GAME.state!=='play')return;
   if(P.inCar){
     var ox=car.x-Math.cos(car.yaw)*2.7, oz=car.z+Math.sin(car.yaw)*2.7;
-    var c=collide(ox,oz,0.5); P.x=c[0]; P.z=c[1]; P.y=terrainH(P.x,P.z);
-    P.inCar=false; car.occupied=false; car.speed*=0.3;
-    say('on foot',1.4);
+    var c=collide(ox,oz,0.5,0); P.x=c[0]; P.z=c[1]; P.y=terrainH(P.x,P.z);
+    P.inCar=false; car.occupied=false;
+    say('down off the wagon',1.4);
   }else{
     if(Math.hypot(P.x-car.x,P.z-car.z)>4.8)return;
     P.inCar=true; car.occupied=true; P.yaw=Math.PI-car.yaw;
-    AU.whinny(); say('you have the reins',1.8);
+    AU.whinny(); say('riding along',1.8);
   }
 }
 
 function updateCar(dt){
-  var drive=0,haul=0,steerIn=0;
-  if(P.inCar){
-    drive=(keys.KeyW?1:0); haul=(keys.KeyS?1:0);
-    steerIn=(keys.KeyA?1:0)-(keys.KeyD?1:0);
-  }
-  car.steer=damp(car.steer,steerIn,7,dt);
+  // --- the driver picks his line toward the next waypoint ---
+  var wp=ROUTE[car.wp];
+  var tx=wp[0]-car.x, tz=wp[1]-car.z, td=Math.sqrt(tx*tx+tz*tz);
+  if(td<6.5) car.wp=(car.wp+1)%ROUTE.length;
+  var off=angWrap(Math.atan2(tx,tz)-car.yaw);
+  car.steer=damp(car.steer,clamp(off*1.7,-1,1),6,dt);
+  car.hurry=damp(car.hurry,1,0.5,dt);
+
+  var want=(Math.abs(off)>0.7?4.2:9.6)*car.hurry;
   var s=car.speed;
-  s+=drive*8.5*dt;
-  if(haul) s-=(s>0?14:6)*dt;
-  s-=s*0.85*dt+(s<0?-1:1)*s*s*0.012*dt;
-  s=clamp(s,-3.5,14);
-  if(Math.abs(s)<0.05&&!drive&&!haul) s=0;
+  s+=clamp(want-s,-1,1)*7.0*dt;
+  s-=s*0.22*dt;
+  s=clamp(s,0,15);
   car.speed=s;
 
-  var grip=clamp(Math.abs(s)/6,0,1);
-  car.yaw+=car.steer*1.9*grip*(s<0?-1:1)*dt;
+  var grip=clamp(s/5,0,1);
+  car.yaw+=car.steer*1.5*grip*dt;
 
   var nx=car.x+Math.sin(car.yaw)*s*dt, nz=car.z+Math.cos(car.yaw)*s*dt;
-  var c=collide(nx,nz,1.6);
+  var c=collide(nx,nz,1.6,0);
   var bumped=Math.abs(c[0]-nx)>0.001||Math.abs(c[1]-nz)>0.001;
-  var hx=c[0]+Math.sin(car.yaw)*3.7, hz=c[1]+Math.cos(car.yaw)*3.7;   // the team gets its own probe
-  var hc=collide(hx,hz,1.0);
+  var hx=c[0]+Math.sin(car.yaw)*3.7, hz=c[1]+Math.cos(car.yaw)*3.7;   // the team, out front
+  var hc=collide(hx,hz,1.0,0);
   if(Math.abs(hc[0]-hx)>0.001||Math.abs(hc[1]-hz)>0.001){
     c[0]+=(hc[0]-hx)*0.9; c[1]+=(hc[1]-hz)*0.9; bumped=true;
   }
   if(bumped){
-    if(Math.abs(car.speed)>3){ AU.thud(); FX.puff(new THREE.Vector3(car.x,car.g.position.y+1,car.z),4,0xB79468,0.3,1.6,0.7); }
-    car.speed*=-0.18;
-  }
+    car.speed*=0.55; car.stuck+=dt;
+    if(car.stuck>1.6){ car.wp=(car.wp+1)%ROUTE.length; car.stuck=0; }   // give up on that line
+  }else car.stuck=Math.max(0,car.stuck-dt*0.5);
   car.x=c[0]; car.z=c[1];
 
   var gy=terrainH(car.x,car.z);
@@ -3000,47 +3020,48 @@ function updateCar(dt){
     if(w<2) car.pivots[w].rotation.y=car.steer*0.30;
   }
 
-  // the team trots on diagonal pairs, faster the harder you push them
-  car.gait+=dt*(1.7+Math.abs(s)*0.80);
-  var amp=clamp(Math.abs(s)/5.5,0.10,1);
+  // the team trots on diagonal pairs, faster the harder he pushes them
+  car.gait+=dt*(1.7+s*0.80);
+  var amp=clamp(s/5.5,0.10,1);
   for(var hi=0;hi<car.horses.length;hi++){
     var H=car.horses[hi], ph=car.gait+hi*0.62;
     for(var L=0;L<4;L++){
-      var lg=H.legs[L], off=(L===0||L===3)?0:Math.PI;
-      lg.up.rotation.x=Math.sin(ph+off)*0.58*amp;
-      lg.lo.rotation.x=-Math.max(0,Math.sin(ph+off+0.9))*0.80*amp;
+      var lg=H.legs[L], lo=(L===0||L===3)?0:Math.PI;
+      lg.up.rotation.x=Math.sin(ph+lo)*0.58*amp;
+      lg.lo.rotation.x=-Math.max(0,Math.sin(ph+lo+0.9))*0.80*amp;
     }
     H.g.position.y=Math.abs(Math.sin(ph))*0.05*amp;
     H.neck.rotation.x=H.neckBase+Math.sin(ph*2)*0.06*amp;
     H.tail.rotation.z=Math.sin(car.gait*0.8+hi)*0.14;
   }
-  if(Math.abs(s)>0.5){
-    car.beat-=dt*(1.7+Math.abs(s)*0.80)/Math.PI;
-    if(car.beat<=0){ AU.clop(clamp(Math.abs(s)/9,0.25,1)); car.beat=1; }
+  if(s>0.5){
+    car.beat-=dt*(1.7+s*0.80)/Math.PI;
+    if(car.beat<=0){ AU.clop(clamp(s/9,0.25,1)); car.beat=1; }
   }
-
-  if(P.inCar){
-    P.x=car.x; P.z=car.z; P.y=gy;
-    P.moving=clamp(Math.abs(s)/8,0,1);
-    if(Math.abs(s)>2&&rnd()<dt*12)
-      FX.puff(new THREE.Vector3(car.x-Math.sin(car.yaw)*1.6,gy+0.2,car.z-Math.cos(car.yaw)*1.6),1,0xC2A177,0.32,0.6,0.5);
-    if(Math.abs(s)>5){
-      var tx=car.x+Math.sin(car.yaw)*3.4, tz=car.z+Math.cos(car.yaw)*3.4;
-      for(var i=0;i<enemies.length;i++){
-        var e=enemies[i]; if(e.dead)continue;
-        if(Math.hypot(e.x-tx,e.z-tz)<2.9||Math.hypot(e.x-car.x,e.z-car.z)<2.4){
-          killOutlaw(e,'car'); car.speed*=0.86;
-          FX.puff(new THREE.Vector3(e.x,gy+1,e.z),6,0xB79468,0.32,2.2,1.4);
-        }
+  if(s>2&&rnd()<dt*12)
+    FX.puff(new THREE.Vector3(car.x-Math.sin(car.yaw)*1.6,gy+0.2,car.z-Math.cos(car.yaw)*1.6),1,0xC2A177,0.32,0.6,0.5);
+  if(s>5){                                        // he does not slow down for anybody
+    var rx2=car.x+Math.sin(car.yaw)*3.4, rz2=car.z+Math.cos(car.yaw)*3.4;
+    for(var i=0;i<enemies.length;i++){
+      var e=enemies[i]; if(e.dead)continue;
+      if(Math.hypot(e.x-rx2,e.z-rz2)<2.9||Math.hypot(e.x-car.x,e.z-car.z)<2.4){
+        killOutlaw(e,'car');
+        FX.puff(new THREE.Vector3(e.x,gy+1,e.z),6,0xB79468,0.32,2.2,1.4);
       }
     }
-    // up on the spring seat, reins in hand
-    var aligned=Math.PI-car.yaw, off=angWrap(P.yaw-aligned);
-    if(off> 1.9) off= 1.9; if(off<-1.9) off=-1.9;            // you can only crane so far
-    off=damp(off,0,0.7,dt);
-    P.yaw=aligned+off;
-    camera.position.set(car.x+Math.sin(car.yaw)*0.5,gy+2.16,car.z+Math.cos(car.yaw)*0.5);
-    camera.rotation.set(P.pitch,P.yaw,0,'YXZ');   // level on the seat as well
+  }
+
+  if(P.inCar){                                    // sitting in the bed, behind the driver
+    P.x=car.x; P.z=car.z; P.y=gy;
+    P.moving=clamp(s/8,0,1);
+    var aligned=Math.PI-car.yaw, look=angWrap(P.yaw-aligned);
+    if(look> 2.4) look= 2.4; if(look<-2.4) look=-2.4;
+    P.yaw=aligned+look;
+    // shifted right of the driver so his back is not in the middle of the view
+    camera.position.set(car.x-Math.sin(car.yaw)*0.72-Math.cos(car.yaw)*0.42,
+                        gy+2.02,
+                        car.z-Math.cos(car.yaw)*0.72+Math.sin(car.yaw)*0.42);
+    camera.rotation.set(P.pitch,P.yaw,0,'YXZ');
   }
 }
 
@@ -3108,6 +3129,7 @@ function updateHud(dt){
   if(shown!==lastAmmo||P.weapon!==lastWeapon){
     lastAmmo=shown; lastWeapon=P.weapon;
     ui.ammoN.textContent=shown;
+    ui.ammoOf.textContent=P.weapon==='rifle'?' / 9':' / 6';
     ui.cal.textContent=P.weapon==='rifle'?'.45-70 Springfield':'.45 Colt';
     var lit=P.weapon==='rifle'?Math.min(6,shown):shown;
     for(var i=0;i<6;i++) cylEls[i].className=i<lit?'loaded':'';
@@ -3143,7 +3165,7 @@ function updateHud(dt){
   ui.hurt.style.opacity=P.hurtT>0?clamp(P.hurtT,0,1)*0.9:(GAME.hp<32?0.16+Math.sin(GAME.t*3)*0.05:0);
 
   var near=!P.inCar&&Math.hypot(P.x-car.x,P.z-car.z)<4.8;
-  ui.prompt.textContent=P.inCar?'F · step down':'F · take the reins';
+  ui.prompt.textContent=P.inCar?'F · step down':'F · ride along';
   if(P.weapon==='rifle'&&!near&&!P.inCar){
     ui.prompt.textContent='Hold right mouse to aim  ·  1 · Colt';
   }
@@ -3270,6 +3292,7 @@ function beginRun(){
   for(var dI=0;dI<doors.length;dI++){ doors[dI].a=0; doors[dI].v=0; doors[dI].hL.rotation.y=0; doors[dI].hR.rotation.y=0; }
   lastWeapon='';
   car.x=14; car.z=6.5; car.yaw=-0.5; car.speed=0; car.steer=0; car.occupied=false;
+  car.wp=0; car.hurry=1; car.stuck=0; P.cylIndex=0;
   clearEnemies();
   lastAmmo=lastKills=lastHp=lastLeft=-1; lastClock='';
   ui.feed.innerHTML='';
