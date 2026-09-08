@@ -17,7 +17,8 @@ var ui={
   hud:$('hud'),left:$('left'),wave:$('wave'),objtxt:$('objtxt'),clock:$('clock'),
   tally:$('tally'),bars:$('bars'),state:$('state'),ammoN:$('ammoN'),cyl:$('cyl'),
   feed:$('feed'),prompt:$('prompt'),cross:$('cross'),mark:$('mark'),hurt:$('hurt'),strip:$('strip'),
-  cal:$('cal'),scope:$('scope'),pause:$('pause'),ammoOf:$('ammoOf')
+  cal:$('cal'),scope:$('scope'),pause:$('pause'),ammoOf:$('ammoOf'),
+  guns:$('guns'),gunColt:$('gunColt'),gunRifle:$('gunRifle')
 };
 (function initHud(){
   var i,b;
@@ -83,6 +84,12 @@ document.addEventListener('mouseup',function(e){
   if(e.button===2){ P.ads=false; dragging=false; }
 });
 window.addEventListener('blur',function(){ dragging=false; P.fireHeld=false; P.ads=false; });
+// The wheel swaps guns, the way it does in everything else - 1 and 2 still work.
+window.addEventListener('wheel',function(e){
+  if(GAME.state!=='play'||GAME.paused||!P.hasRifle)return;
+  e.preventDefault();
+  setWeapon(P.weapon==='colt'?'rifle':'colt');
+},{passive:false});
 document.addEventListener('contextmenu',function(e){ if(GAME.state==='play') e.preventDefault(); });
 
 // Two aiming modes. Pointer lock is the good one: the system cursor vanishes and
@@ -394,7 +401,7 @@ function updatePlayer(dt){
       riflePickup.taken=true; world.remove(riflePickup.g);
       P.hasRifle=true; P.rifleAmmo=9; P.weapon='rifle'; P.rifleWork=0.9; P.reloading=false;
       feed('you have the <em>Springfield</em>');
-      say('1 Colt, 2 rifle, hold right mouse to aim',6);
+      say('1 or the wheel goes back to the Colt, 2 for the rifle',6.5);
     }
   }
   if(P.moving>0.1&&P.onGround) P.bob+=dt*(run?13:8.4);   // still drives the weapon, not the view
@@ -582,7 +589,12 @@ function updateEnemies(dt){
     }
     if(e.kind==='sniper'){
       var sdx=P.x-e.x, sdz=P.z-e.z, sd=Math.sqrt(sdx*sdx+sdz*sdz)||0.001;
-      e.g.rotation.y=Math.atan2(sdx,sdz)+Math.PI;
+      /* He is built kneeling towards +z - the braced knee, the arms and the
+         rifle all lead that way - where the outlaws are built facing back down
+         their own -z. So he takes the bearing straight, with no half turn on
+         top of it: with one he tracked you perfectly and showed you his back
+         the whole time, rifle pointed off the wrong side of the roof. */
+      e.g.rotation.y=Math.atan2(sdx,sdz);
       e.yaw=e.g.rotation.y;
       e.rifle.rotation.x=clamp(-Math.atan2((e.y+1.35)-(P.y+1.0),sd),-0.95,0.30);
       if(e.hitT>0) e.hitT-=dt;
@@ -862,6 +874,9 @@ function updateHud(dt){
     lastAmmo=shown; lastWeapon=P.weapon;
     ui.ammoN.textContent=shown;
     ui.ammoOf.textContent=P.weapon==='rifle'?' / 9':' / 6';
+    ui.guns.hidden=!P.hasRifle;
+    ui.gunColt.classList.toggle('on',P.weapon==='colt');
+    ui.gunRifle.classList.toggle('on',P.weapon==='rifle');
     ui.cal.textContent=P.weapon==='rifle'?'.45-70 Springfield':'.45 Colt';
     var lit=P.weapon==='rifle'?Math.min(6,shown):shown;
     for(var i=0;i<6;i++) cylEls[i].className=i<lit?'loaded':'';
@@ -899,7 +914,7 @@ function updateHud(dt){
   var near=!P.inCar&&Math.hypot(P.x-car.x,P.z-car.z)<4.8;
   ui.prompt.textContent=P.inCar?'F · step down':'F · ride along';
   if(P.weapon==='rifle'&&!near&&!P.inCar){
-    ui.prompt.textContent='Hold right mouse to aim  ·  1 · Colt';
+    ui.prompt.textContent='Hold right mouse to aim  ·  1 or wheel for the Colt';
   }
   ui.prompt.classList.toggle('on',near||P.inCar||(P.weapon==='rifle'));
 
@@ -1019,6 +1034,7 @@ function beginRun(){
   P.ammo=6; P.reloading=false; P.recoil=0; P.inCar=false; P.hurtT=0; P.fireHeld=false;
   dropAds();
   P.weapon='colt'; P.hasRifle=false; P.rifleAmmo=0; P.rifleWork=0;
+  ui.guns.hidden=true;
   if(riflePickup){ if(!riflePickup.taken) world.remove(riflePickup.g); riflePickup=null; }
   ui.pause.classList.add('gone'); $('fullKeys').hidden=true;
   for(var dI=0;dI<doors.length;dI++){ doors[dI].a=0; doors[dI].v=0; doors[dI].hL.rotation.y=0; doors[dI].hR.rotation.y=0; }

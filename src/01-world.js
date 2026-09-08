@@ -226,6 +226,10 @@ function posterTex(){
   g.beginPath(); g.moveTo(256,340); g.lineTo(216,340); g.lineTo(256,306); g.fill();
   var t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t;
 }
+/* rotY is the way the paper faces. A plane faces its own +z and every wall
+   these go on fronts local -z, so the callers pass PI - hung the other way the
+   sheet is double-sided enough to draw, but you are reading the back of it and
+   WANTED comes out mirrored. */
 function poster(parent,lx,ly,lz,rotY,scale){
   var sc=scale||1;
   var m=new THREE.Mesh(new THREE.PlaneGeometry(0.42*sc,0.56*sc),
@@ -666,7 +670,7 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
     S.part(0.14,DOORH+0.16,0.16,MAT.wood1,-DOORW/2-0.07,DOORH/2,-d/2+0.02,false);
     S.part(0.14,DOORH+0.16,0.16,MAT.wood1, DOORW/2+0.07,DOORH/2,-d/2+0.02,false);
     for(var pj=-1;pj<=1;pj+=2){                                      // notices nailed by the door
-      if(rnd()<0.55) poster(g,pj*(DOORW/2+0.42),1.62,-d/2-0.03,0,rr(0.9,1.15));
+      if(rnd()<0.55) poster(g,pj*(DOORW/2+0.42),1.62,-d/2-0.03,Math.PI,rr(0.9,1.15));
     }
     hangDoors(S,face,x,z,d,kind);
     for(var lp=-1;lp<=1;lp+=2){                                      // coach lamps at the door
@@ -762,7 +766,8 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
   if(style!=='two'){
     S.part(0.17,h*0.62,0.17,MAT.wood1,-w/2+0.3,h*0.31,-d/2-2.6);
     S.part(0.17,h*0.62,0.17,MAT.wood1, w/2-0.3,h*0.31,-d/2-2.6);
-    if(rnd()<0.5) poster(g,(rnd()<0.5?-1:1)*(w/2-0.3),1.55,-d/2-2.69,0,0.72);
+    // sized to the post it is nailed to, rather than hanging over both edges of it
+    if(rnd()<0.5) poster(g,(rnd()<0.5?-1:1)*(w/2-0.3),1.55,-d/2-2.70,Math.PI,0.40);
   }
   var bw=box(w+0.9,0.2,3.0,MAT.wood1,0,0.1,-d/2-1.6,g); bw.castShadow=false;
   // hung from the awning, clear of the door and well over head height
@@ -801,13 +806,20 @@ function person(g,x,y,z,yaw,cfg){
   }
   var seated=!!cfg.seated, hip=seated?0.54:0.86;
   var tY=hip+(seated?0.56:0.64), hY=tY+0.45;
+  var torsoH=seated?0.52:0.60, tBot=tY-torsoH/2;   // where the hips have to reach up to
   if(cfg.robe){
     var rb=new THREE.Mesh(new THREE.CylinderGeometry(0.21,0.44,seated?0.98:1.30,10),coat);
     rb.position.y=(seated?0.98:1.30)/2; G.add(rb);
   }else{
+    var legMat=cfg.trews?new THREE.MeshLambertMaterial({color:cfg.trews}):coat;
+    /* Hips. The legs hang off a pivot at hip height and the torso sits well
+       above it, so without something bridging the two the body floats over the
+       legs - which you cannot miss once they sit down and the thighs swing
+       forward out from under it. */
+    b(0.44,tBot-hip+0.08,0.30,legMat,0,(hip+tBot)/2,0);
     for(var lg=0;lg<2;lg++){
       var pv=new THREE.Group(); pv.position.set(lg?0.14:-0.14,hip,0); G.add(pv);
-      var up=b(0.19,0.46,0.21,cfg.trews?new THREE.MeshLambertMaterial({color:cfg.trews}):coat,0,-0.23,0,pv);
+      var up=b(0.19,0.46,0.21,legMat,0,-0.23,0,pv);
       if(seated){ pv.rotation.x=-1.45; }
       var kn=new THREE.Group(); kn.position.y=-0.46; pv.add(kn);
       b(0.16,0.44,0.18,coat,0,-0.22,0,kn);
@@ -815,7 +827,7 @@ function person(g,x,y,z,yaw,cfg){
       b(0.18,0.10,0.26,MAT.dark,0,-0.46,0.04,kn);
     }
   }
-  b(0.56,seated?0.52:0.60,0.32,shirt,0,tY,0);
+  b(0.56,torsoH,0.32,shirt,0,tY,0);
   if(cfg.vest) b(0.58,0.44,0.34,new THREE.MeshLambertMaterial({color:cfg.vest}),0,tY-0.03,0);
   if(cfg.apron) b(0.46,0.62,0.20,new THREE.MeshLambertMaterial({color:0xD9CDB4}),0,tY-0.16,0.17);
   if(cfg.collar) b(0.30,0.09,0.30,new THREE.MeshLambertMaterial({color:0xEDE6D4}),0,tY+0.29,0);
@@ -1065,13 +1077,19 @@ function hangDoors(S,face,x,z,d,kind){
       box(0.036,0.125,0.125,MAT.brass,dir*0.088,y1-0.40,0,p);
       box(0.030,0.085,0.085,MAT.brass,dir*(lw-0.05),y0+0.86,0,p);
     }else{
-      box(lw,2.18,0.06,PLANKDOOR,cx,1.14,0,p);
-      box(lw,0.11,0.080,PLANKDOOR,cx,1.94,0,p);
-      box(lw,0.11,0.080,PLANKDOOR,cx,0.46,0,p);
-      box(lw*0.62,0.62,0.04,MAT.pane,cx,1.62,-0.030,p);
-      box(0.05,0.62,0.055,PLANKDOOR,cx,1.62,-0.035,p);
-      box(lw*0.62,0.05,0.055,PLANKDOOR,cx,1.62,-0.035,p);
-      box(0.055,0.055,0.11,MAT.brass,dir*(lw-0.16),1.06,-0.06,p);
+      /* A shop door fills its frame. The opening is DOORH tall and DOORW wide
+         and the leaf hangs behind it, so the leaf is cut to the whole opening
+         and then some - short of that you get daylight over the head and down
+         the shut edge of a door that is supposed to be closed. The batwings
+         above are meant to leave the frame open; these are not. */
+      var sl=DOORW/2, scx=dir*(sl/2-0.06), sh=DOORH+0.04, sy=sh/2-0.02;
+      box(sl,sh,0.06,PLANKDOOR,scx,sy,0,p);
+      box(sl,0.11,0.080,PLANKDOOR,scx,DOORH-0.10,0,p);            // head rail
+      box(sl,0.11,0.080,PLANKDOOR,scx,0.14,0,p);                  // kick rail
+      box(sl*0.62,0.66,0.04,MAT.pane,scx,1.70,-0.030,p);
+      box(0.05,0.66,0.055,PLANKDOOR,scx,1.70,-0.035,p);
+      box(sl*0.62,0.05,0.055,PLANKDOOR,scx,1.70,-0.035,p);
+      box(0.055,0.055,0.11,MAT.brass,dir*(sl-0.16),1.06,-0.06,p);
     }
     p.traverse(function(o){ if(o.isMesh){ o.castShadow=false; hitables.push(o); } });
   }
@@ -1377,7 +1395,30 @@ stage('the water tower',7,function tower(){
     leg.rotation.z=Math.cos(a)*0.045; leg.rotation.x=-Math.sin(a)*0.045;
     addBlocker(28+Math.cos(a)*2.6,-34+Math.sin(a)*2.6,0.6,0.6);
   }
-  for(var b=0;b<3;b++) box(6.4,0.16,0.16,MAT.wood1,0,2.6+b*3.2,0,g).rotation.y=b*0.6;
+  /* The legs are battered - 2.6 out at mid height, leaning in by 0.045 - so a
+     girt has to be cut to the spread at its own height and laid along the side
+     it joins, not dropped through the middle of the tower at whatever angle.
+     Four sides, three levels, and an X in each bay to stop it racking. */
+  function spread(y){ return 2.6+0.045*(5.1-y); }            // leg centres at height y
+  function girt(y){
+    var c=spread(y)/Math.SQRT2, L=2*c+0.3;
+    box(L,0.16,0.16,MAT.wood1,0,y,c,g);   box(L,0.16,0.16,MAT.wood1,0,y,-c,g);
+    box(0.16,0.16,L,MAT.wood1,c,y,0,g);   box(0.16,0.16,L,MAT.wood1,-c,y,0,g);
+  }
+  function brace(y0,y1){
+    var c0=spread(y0)/Math.SQRT2, c1=spread(y1)/Math.SQRT2;
+    var my=(y0+y1)/2, mc=(c0+c1)/2;
+    var run=c0+c1, rise=y1-y0;
+    var len=Math.sqrt(run*run+rise*rise), t=Math.atan2(rise,run);
+    for(var sd=-1;sd<=1;sd+=2){
+      box(len,0.11,0.11,MAT.wood1,0,my,sd*mc,g).rotation.z= t;   // the two sides square to z
+      box(len,0.11,0.11,MAT.wood1,0,my,sd*mc,g).rotation.z=-t;
+      box(0.11,0.11,len,MAT.wood1,sd*mc,my,0,g).rotation.x=-t;   // and the two square to x
+      box(0.11,0.11,len,MAT.wood1,sd*mc,my,0,g).rotation.x= t;
+    }
+  }
+  girt(1.5); girt(5.1); girt(8.7);
+  brace(1.5,5.1); brace(5.1,8.7);
 });
 
 var windmill=null;
