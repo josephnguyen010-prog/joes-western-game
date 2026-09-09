@@ -1951,20 +1951,61 @@ stage('the water tower',7,function tower(){
 var windmill=null;
 stage('the windmill',2,function mill(){
   var g=new THREE.Group(); g.position.set(-34,terrainH(-34,32),32); world.add(g);
+  var TOP=9.4;                                       // where the four legs finish
   for(var i=0;i<4;i++){
     var a=i*Math.PI/2+Math.PI/4;
-    var leg=box(0.22,9.4,0.22,MAT.wood1,Math.cos(a)*1.7,4.7,Math.sin(a)*1.7,g);
+    var leg=box(0.22,TOP,0.22,MAT.wood1,Math.cos(a)*1.7,TOP/2,Math.sin(a)*1.7,g);
     leg.rotation.z=Math.cos(a)*0.06; leg.rotation.x=-Math.sin(a)*0.06;
   }
-  var hub=new THREE.Group(); hub.position.set(0,9.9,0.4); g.add(hub);
-  hub.add(new THREE.Mesh(new THREE.TorusGeometry(2.3,0.06,6,20),MAT.metal));
-  for(var b=0;b<16;b++){
-    var bl=new THREE.Mesh(new THREE.BoxGeometry(0.42,1.5,0.03),MAT.metal);
-    var ang=b/16*TAU;
-    bl.position.set(Math.cos(ang)*1.6,Math.sin(ang)*1.6,0);
-    bl.rotation.z=ang+0.5; bl.castShadow=true; hub.add(bl);
+  /* Battered like the water tower - 1.7 out at mid height, leaning in by 0.06 -
+     so the girts and X-braces are cut to the spread at their own height. Without
+     them the tower is four loose sticks with a wheel hanging over it. */
+  function spread(y){ return 1.7+0.06*(TOP/2-y); }   // leg centres at height y
+  function girt(y){
+    var c=spread(y)/Math.SQRT2, L=2*c+0.22;
+    box(L,0.12,0.12,MAT.wood1,0,y,c,g);   box(L,0.12,0.12,MAT.wood1,0,y,-c,g);
+    box(0.12,0.12,L,MAT.wood1,c,y,0,g);   box(0.12,0.12,L,MAT.wood1,-c,y,0,g);
   }
-  box(0.06,1.5,2.6,MAT.rust,0,9.9,-2.4,g);
+  function brace(y0,y1){
+    var c0=spread(y0)/Math.SQRT2, c1=spread(y1)/Math.SQRT2;
+    var my=(y0+y1)/2, mc=(c0+c1)/2;
+    var run=c0+c1, rise=y1-y0;
+    var len=Math.sqrt(run*run+rise*rise), t=Math.atan2(rise,run);
+    for(var sd=-1;sd<=1;sd+=2){
+      box(len,0.09,0.09,MAT.wood1,0,my,sd*mc,g).rotation.z= t;   // the two sides square to z
+      box(len,0.09,0.09,MAT.wood1,0,my,sd*mc,g).rotation.z=-t;
+      box(0.09,0.09,len,MAT.wood1,sd*mc,my,0,g).rotation.x=-t;   // and the two square to x
+      box(0.09,0.09,len,MAT.wood1,sd*mc,my,0,g).rotation.x= t;
+    }
+  }
+  girt(1.4); girt(4.6); girt(7.8); girt(TOP-0.2);
+  brace(1.4,4.6); brace(4.6,7.8); brace(7.8,TOP-0.2);
+
+  /* The head yaws on a pintle over the legs and carries the wheel far enough
+     forward (+Z) that the sails swing clear of the top of the tower. */
+  box(0.26,0.8,0.26,MAT.metal,0,TOP+0.1,0,g);
+  var head=new THREE.Group(); head.position.set(0,TOP+0.5,0); g.add(head);
+  box(0.85,0.55,2.5,MAT.wood1,0,0,0.35,head);
+  var hub=new THREE.Group(); hub.position.set(0,0,1.75); head.add(hub);
+
+  var R=2.3;
+  hub.add(new THREE.Mesh(new THREE.TorusGeometry(R,0.06,6,20),MAT.metal));
+  var nose=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.42,10),MAT.metal);
+  nose.rotation.x=Math.PI/2; nose.castShadow=true; hub.add(nose);
+  for(var b=0;b<16;b++){
+    /* One arm per sail, turned so its local +Y is that sail's radius. The sail
+       is then a long paddle along that radius, pitched about it - which is what
+       makes a fan from the front and a ring of scoops from the side. */
+    var arm=new THREE.Group(); arm.rotation.z=b/16*TAU; hub.add(arm);
+    var sail=new THREE.Mesh(new THREE.BoxGeometry(0.44,R-0.5,0.03),MAT.metal);
+    sail.position.y=(R+0.4)/2-0.05; sail.rotation.y=0.42; sail.castShadow=true;
+    arm.add(sail);
+  }
+
+  /* The vane rides a boom off the back of the head, so it is held out behind
+     the wheel instead of floating on its own. */
+  box(0.10,0.10,2.6,MAT.rust,0,0,-1.8,head);
+  box(0.05,1.5,1.7,MAT.rust,0,0.2,-3.6,head);
   addBlocker(-34,32,3.4,3.4); windmill=hub;
 });
 
