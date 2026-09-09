@@ -904,7 +904,17 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
     if(deck) S.platform(0,-d/2+deck/2,w+0.30,deck,h+0.09);
     else     S.platform(0,0,w+0.30,d+0.30,h+0.09);
   }
-  S.blocker(0,-d/2-0.14,w+0.34,0.36,fh);
+  /* The face of the building, as a wall you cannot walk through - but in two
+     pieces, with the doorway between them. Run across the whole front it sits
+     over the opening as well, and the only thing letting you in is the portal
+     turning collision off; stand at the edge of that and you are exempt while
+     half inside the wall, and the step that leaves the exemption throws you
+     half a metre. Leaving a real gap means nothing has to be excused. */
+  if(open){
+    var fbw=(w+0.34-DOORW)/2;
+    S.blocker(-(DOORW+fbw)/2,-d/2-0.14,fbw,0.36,fh);
+    S.blocker( (DOORW+fbw)/2,-d/2-0.14,fbw,0.36,fh);
+  }else S.blocker(0,-d/2-0.14,w+0.34,0.36,fh);
 
   /* The name board on the false front. A plane faces its own +z, and the
      front of the building is local -z, so it has to be turned about to face
@@ -1222,9 +1232,15 @@ function hangDoors(S,face,x,z,d,kind){
   var c=Math.cos(face), sn=Math.sin(face);
   doors.push({hL:hL,hR:hR,x:x+dz*sn,z:z+dz*c,nx:-sn,nz:-c,a:0,v:0,snd:0,
               sw:bat?1:0,ph:rr(0,TAU)});
-  var pcx=x+(-d/2)*sn, pcz=z+(-d/2)*c, swp=Math.abs(sn)>0.5;
-  portals.push({x0:pcx-(swp?0.95:1.16),x1:pcx+(swp?0.95:1.16),
-                z0:pcz-(swp?1.16:0.95),z1:pcz+(swp?1.16:0.95)});
+  /* The doorway turns collision off outright, so it has to be the corridor a
+     body actually fits down, not the width of the hole. The opening is DOORW
+     across; anyone whose centre is inside DOORW/2 minus their own radius has
+     all of themselves in the clear. Any wider - it used to be 1.16, wider than
+     the half opening - and you can stand with half of you inside a jamb, exempt
+     from everything, and get flung out the moment you step past the edge. */
+  var pcx=x+(-d/2)*sn, pcz=z+(-d/2)*c, swp=Math.abs(sn)>0.5, pw2=DOORW/2-0.48;
+  portals.push({x0:pcx-(swp?0.95:pw2),x1:pcx+(swp?0.95:pw2),
+                z0:pcz-(swp?pw2:0.95),z1:pcz+(swp?pw2:0.95)});
 }
 
 /* --- what is actually inside each door --- */
@@ -1695,11 +1711,34 @@ function skull(x,z){
   var h2=h1.clone(); h2.position.x=0.2; h2.rotation.z=0.5+Math.PI; g.add(h2);
 }
 
+/* The boardwalk strip these get scattered along is also where every door lets
+   out, and a barrel dropped on a doorstep does not look like clutter, it looks
+   like the building is shut: the crate that landed on the Hotel Drury step
+   walled the place off completely. Nothing is placed in the corridor in front
+   of a door any more. */
+function doorwayClear(x,z,half){
+  for(var i=0;i<doors.length;i++){
+    var dr=doors[i], dx=x-dr.x, dz=z-dr.z;
+    var out=dx*dr.nx+dz*dr.nz;                  // how far out in front of it
+    var lat=Math.abs(dx*(-dr.nz)+dz*dr.nx);     // and how far off the centre line
+    if(out>-0.8&&out<5.2&&lat<half) return false;
+  }
+  return true;
+}
+function placeClear(half,x0,x1,z0,z1,fn){
+  for(var g=0;g<60;g++){
+    var px=rr(x0,x1), pz=(rnd()<0.5?1:-1)*rr(z0,z1);
+    if(doorwayClear(px,pz,half)){ fn(px,pz); return; }
+  }
+}
 stage('barrels, crates and cactus',80,function dressTheSet(){
   var i;
-  for(i=0;i<7;i++) barrel(rr(-40,40),(rnd()<0.5?1:-1)*rr(10.6,12.2));
-  for(i=0;i<8;i++) crate(rr(-42,42),(rnd()<0.5?1:-1)*rr(10.6,12.4));
-  for(i=0;i<6;i++) rail(rr(-40,40),(rnd()<0.5?1:-1)*rr(9.6,10.3),rr(2.4,4));
+  for(i=0;i<7;i++) placeClear(1.8,-40,40,10.6,12.2,function(px,pz){ barrel(px,pz); });
+  for(i=0;i<8;i++) placeClear(1.9,-42,42,10.6,12.4,function(px,pz){ crate(px,pz); });
+  for(i=0;i<6;i++){
+    var rl=rr(2.4,4);
+    placeClear(1.8+rl/2,-40,40,9.6,10.3,function(px,pz){ rail(px,pz,rl); });
+  }
   var pts=[];
   for(i=0;i<7;i++) pts.push(pole(-46+i*16,-17.8));
   var wireMat=new THREE.LineBasicMaterial({color:0x2a2018});

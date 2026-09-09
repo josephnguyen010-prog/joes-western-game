@@ -191,6 +191,7 @@ function toTitle(){
   P.fireHeld=false; dragging=false;
   ui.feed.innerHTML=''; ui.state.textContent=''; stateMsgT=0; lastStateTxt=null;
   titleT=0;
+  armStart();                                    // and any key will do again
   setTimeout(function(){ try{ $('start').focus(); }catch(err){} },60);
 }
 
@@ -373,7 +374,17 @@ function updatePlayer(dt){
 
   var ox=P.x, oz=P.z;
   var nx=P.x+vx*dt, nz=P.z+vz*dt;
-  var c=collide(nx,nz,0.45,P.y); P.x=c[0]; P.z=c[1];
+  /* Resolution should only ever take motion away. If it hands you back further
+     from where you were than the step you asked for, it has ejected you out of
+     something, which plays as being flung across the room or dumped back where
+     you came from. Refuse the step instead - unless you were already embedded,
+     in which case the push out is the only way free. */
+  var c=collide(nx,nz,0.45,P.y);
+  if(Math.hypot(c[0]-ox,c[1]-oz)>Math.hypot(nx-ox,nz-oz)+0.02){
+    var was=collide(ox,oz,0.45,P.y);
+    if(Math.abs(was[0]-ox)<1e-6&&Math.abs(was[1]-oz)<1e-6){ c[0]=ox; c[1]=oz; }
+  }
+  P.x=c[0]; P.z=c[1];
   if(Math.sqrt(P.x*P.x+P.z*P.z)>WORLD_R-0.6&&stateMsgT<=0) say('the valley ends at the cliffs',2);
 
   /* Sample the floor along the stride, not just where you ended up. Running
@@ -1115,25 +1126,43 @@ $('showKeys').addEventListener('click',function(){
    one under way. Nothing is clickable until the last of them is done. */
 function runBuild(){
   if(!BUILD.length){
-    setLoad('ready',1);
+    setLoad('READY',1);
     requestAnimationFrame(frame);
-    setTimeout(function(){
-      $('title').classList.remove('gone');
-      $('load').classList.add('fade');
-      setTimeout(function(){ $('load').classList.add('gone'); },520);
-    },400);
+    setTimeout(ready,420);
     return;
   }
   var s=BUILD[0];
-  setLoad(s.label,0.12+0.88*(BUILT/BUILD_W));
+  setLoad('LOADING',0.12+0.88*(BUILT/BUILD_W));
   requestAnimationFrame(function(){
     BUILD.shift(); s.fn(); BUILT+=s.w;
     runBuild();
   });
 }
+
+/* Nothing gets you past this screen until the bar is full - same as the
+   portfolio, where the sequence cannot be skipped. Then the button turns up
+   and a click or a key anywhere will do, so you are not hunting for it. */
+var armed=false;
+function armStart(){
+  if(armed)return;
+  armed=true;
+  var go=function(ev){
+    if(GAME.state!=='title')return;
+    if(ev&&ev.type==='keydown'&&(ev.code==='Escape'||ev.code==='Tab'))return;
+    window.removeEventListener('keydown',go); window.removeEventListener('mousedown',go);
+    armed=false;
+    beginRun();
+  };
+  window.addEventListener('keydown',go); window.addEventListener('mousedown',go);
+}
+function ready(){
+  $('loadAction').classList.add('on');
+  try{ $('start').focus(); }catch(e){}
+  armStart();
+}
 runBuild();
 }
 
-setLoad('mixing the paint…',0.12);
+setLoad('LOADING',0.12);
 requestAnimationFrame(function(){ requestAnimationFrame(boot); });
 })();
