@@ -922,13 +922,39 @@ function floorAt(x,z,feet){
   // Inclusive bounds: exclusive ones leave a hairline at a shared edge that a
   // footfall can land exactly on. The step-up allowance clears one stair tread
   // with room to spare.
-  var h=terrainH(x,z);
-  for(var i=0;i<platforms.length;i++){
+  var h=terrainH(x,z), i;
+  for(i=0;i<platforms.length;i++){
     var p=platforms[i];
     if(x>=p.x0&&x<=p.x1&&z>=p.z0&&z<=p.z1&&p.y>h&&p.y<=feet+0.62) h=p.y;
   }
+  /* Anything solid with a real top is also something you can come down on top
+     of. Collision ignores whatever is below your feet so a roof can be walked,
+     which means a jump carries you over a table or a counter - and without this
+     you land inside it, and the next step ejects you across the room. Landing
+     on the thing you jumped onto is both what you expect and what stops that.
+     Barrels and the like carry no top at all and stay solid all the way up. */
+  for(i=0;i<blockers.length;i++){
+    var b=blockers[i];
+    if(b.top<90&&b.top>h&&b.top<=feet+0.62&&x>=b.x0&&x<=b.x1&&z>=b.z0&&z<=b.z1) h=b.top;
+  }
   return h;
 }
+/* The height your feet would have to be at for this spot to be clear of
+   anything solid. Collision treats you as a disc and the floor treats you as a
+   point, so a jump can set you down standing over the lip of a counter with
+   your middle off it: the floor says there is nothing under you, the walls say
+   you are inside one, and the next step throws you clear. This says how high
+   the thing you clipped is, so you can come down on top of it instead. */
+function clearanceAt(x,z,r){
+  var top=-1e9;
+  for(var i=0;i<blockers.length;i++){
+    var b=blockers[i];
+    if(b.top>=90) continue;                       // no top to stand on
+    if(x>b.x0-r&&x<b.x1+r&&z>b.z0-r&&z<b.z1+r&&b.top>top) top=b.top;
+  }
+  return top;
+}
+
 /* The wagon's figure of eight. It lives up here because the prop scatter
    needs it: cactus and rock are placed everywhere except along this line. */
 var ROUTE=[
@@ -1058,6 +1084,13 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
       S.part(0.13,0.11,ow+0.26,MAT.wood1,sx,y0-0.05,swz,false);
       S.part(0.13,y1-y0+0.22,0.11,MAT.wood1,sx,(y0+y1)/2,swz-ow/2-0.06,false);
       S.part(0.13,y1-y0+0.22,0.11,MAT.wood1,sx,(y0+y1)/2,swz+ow/2+0.06,false);
+      /* A wall is a wall at every height. Each piece of it only blocks up to
+         its own top, and collision ignores anything below your feet so you can
+         walk a roof - so the panel under a window stops blocking the moment a
+         jump lifts you past 0.97, and the opening above it never blocked at
+         all. You could hop straight through the glass and get spat back out on
+         landing. One blocker over the whole column closes it. */
+      S.blocker(sx,0,WALLT,d,h);
     }
     var by0=1.32, by1=2.58, bow=1.60, bside=(w-bow)/2;                // back wall, also cut
     S.part(w,by0,WALLT,wallMat,0,by0/2,d/2-WALLT/2);
@@ -1071,6 +1104,7 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
     S.part(bow+0.28,0.11,0.13,MAT.wood1,0,by0-0.06,d/2-0.02,false);
     S.part(0.12,by1-by0+0.24,0.13,MAT.wood1,-bow/2-0.06,(by0+by1)/2,d/2-0.02,false);
     S.part(0.12,by1-by0+0.24,0.13,MAT.wood1, bow/2+0.06,(by0+by1)/2,d/2-0.02,false);
+    S.blocker(0,d/2-WALLT/2,w,WALLT,h);
     var pw=(w-DOORW)/2;                                              // front, either side of the door
     for(var sgn=-1;sgn<=1;sgn+=2){
       var cx=sgn*(DOORW/2+pw/2), ww=Math.min(pw-0.9,2.1);
@@ -1089,13 +1123,15 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
         S.part(0.10,wh+0.22,0.12,MAT.wood1,cx-ww/2-0.08,wy,-d/2+0.02,false);
         S.part(0.10,wh+0.22,0.12,MAT.wood1,cx+ww/2+0.08,wy,-d/2+0.02,false);
       } else S.part(pw,h,WALLT,wallMat,cx,h/2,-d/2+WALLT/2);
+      S.blocker(cx,-d/2+WALLT/2,pw,WALLT,h);      // the doorway stays the only way in
     }
     S.part(DOORW,h-DOORH,WALLT,wallMat,0,(h+DOORH)/2,-d/2+WALLT/2,false);  // header: no footprint, you walk under it
     S.part(DOORW+0.36,0.14,0.16,MAT.wood1,0,DOORH+0.08,-d/2+0.02,false);   // door casing
     S.part(0.14,DOORH+0.16,0.16,MAT.wood1,-DOORW/2-0.07,DOORH/2,-d/2+0.02,false);
     S.part(0.14,DOORH+0.16,0.16,MAT.wood1, DOORW/2+0.07,DOORH/2,-d/2+0.02,false);
     for(var pj=-1;pj<=1;pj+=2){                                      // notices nailed by the door
-      if(rnd()<0.55) poster(g,pj*(DOORW/2+0.42),1.62,-d/2-0.03,Math.PI,rr(0.9,1.15));
+      // below the lamp, not behind it - at 1.62 the sheet came out through the glass
+      if(rnd()<0.55) poster(g,pj*(DOORW/2+0.42),1.26,-d/2-0.03,Math.PI,rr(0.9,1.15));
     }
     hangDoors(S,face,x,z,d,kind);
     for(var lp=-1;lp<=1;lp+=2){                                      // coach lamps at the door
@@ -1402,7 +1438,7 @@ function dressSaloon(S,g,w,d,h,v){
     cyl(0.06,0.06,0.52,6,MAT.inside,w/2-1.95,0.28,back-1.1);
     table(w*0.10,-d*0.22,false); table(w*0.20,d*0.10,false);
     picture('portrait',0.62,0.78,w/2-WALLT-0.10,2.20,-d*0.24,-Math.PI/2);
-    picture('horse',0.86,0.66,w/2-WALLT-0.10,2.20,d*0.06,-Math.PI/2);
+    picture('horse',0.86,0.66,w/2-WALLT-0.10,2.20,-d*0.06,-Math.PI/2);
     picture('wanted',0.54,0.68,-w/2+WALLT+0.10,2.35,-d*0.32,Math.PI/2);
     wallGun(0,2.45,back+0.62,0);
     chandelier(0,-d*0.06,0.52,0xFFB566);
@@ -1433,9 +1469,9 @@ function dressSaloon(S,g,w,d,h,v){
       it(0.10,1.60,0.42,MAT.drape,sg*(w/2-WALLT-0.10),2.10,d*0.18+0.70);
     }
     it(w-2.2,0.05,1.9,MAT.drape,0,0.13,-d*0.06);                          // rug
-    picture('landscape',1.15,0.86,-w/2+WALLT+0.10,2.30,d*0.10,Math.PI/2);
+    picture('landscape',1.15,0.86,-w/2+WALLT+0.10,2.30,-d*0.14,Math.PI/2);
     picture('portrait',0.66,0.84,w/2-WALLT-0.10,2.30,-d*0.10,-Math.PI/2);
-    picture('still',0.70,0.86,w/2-WALLT-0.10,2.30,d*0.20,-Math.PI/2);
+    picture('still',0.70,0.86,w/2-WALLT-0.10,2.30,d*0.30,-Math.PI/2);
     stove(-w/2+1.2,-d*0.30);
     chandelier(0,-d*0.06,0.62,0xFFC98A);
     person(g,0,0,back-0.15,Math.PI,{coat:0x4A4038,shirt:0xE0D6C0,apron:1,wipe:1,hair:0x4A3A28});
@@ -1762,7 +1798,11 @@ stage('the church',5,function church(){
   var pw=(W-2.2)/2;
   S.part(pw,H,WALLT,inMat,-(1.1+pw/2),H/2,-D/2+WALLT/2);           // front, doorway left open
   S.part(pw,H,WALLT,inMat, (1.1+pw/2),H/2,-D/2+WALLT/2);
-  S.part(2.2,H-2.9,WALLT,inMat,0,(H+2.9)/2,-D/2+WALLT/2,false);
+  S.part(2.2,H-DOORH,WALLT,inMat,0,(H+DOORH)/2,-D/2+WALLT/2,false);   // header over the doors
+  S.part(2.56,0.14,0.16,MAT.wood1,0,DOORH+0.08,-D/2+0.02,false);      // and its casing
+  S.part(0.14,DOORH+0.16,0.16,MAT.wood1,-1.17,DOORH/2,-D/2+0.02,false);
+  S.part(0.14,DOORH+0.16,0.16,MAT.wood1, 1.17,DOORH/2,-D/2+0.02,false);
+  hangDoors(S,FACE,CX,CZ,D,'church');    // it had stood open since it was built
 
   // gable: two slabs meeting at a ridge, sized to the walls instead of a scaled pyramid
   var half=W/2, slope=Math.hypot(half,RISE), ang=Math.atan2(RISE,half);
@@ -2016,6 +2056,23 @@ function skull(x,z){
    like the building is shut: the crate that landed on the Hotel Drury step
    walled the place off completely. Nothing is placed in the corridor in front
    of a door any more. */
+/* The scatter used to be laid down blind, which is how a landmark boulder ended
+   up standing in the nave: the church is 70 out from the middle of the map and
+   the outcrops are thrown between 58 and 78. A room has no blockers in it, so
+   being clear of the walls is not the same as being outside, and both have to
+   be checked. */
+function clearOfTown(x,z,m){
+  var i;
+  for(i=0;i<interiors.length;i++){
+    var r=interiors[i];
+    if(x>r.x0-m&&x<r.x1+m&&z>r.z0-m&&z<r.z1+m) return false;
+  }
+  for(i=0;i<blockers.length;i++){
+    var b=blockers[i];
+    if(x>b.x0-m&&x<b.x1+m&&z>b.z0-m&&z<b.z1+m) return false;
+  }
+  return true;
+}
 function doorwayClear(x,z,half){
   for(var i=0;i<doors.length;i++){
     var dr=doors[i], dx=x-dr.x, dz=z-dr.z;
@@ -2053,15 +2110,23 @@ stage('barrels, crates and cactus',80,function dressTheSet(){
     if(Math.hypot(cx,cz)>84) continue;
     if(Math.abs(cz)<28&&cx>-92&&cx<56) continue;      // not on the street, not in the church yard
     if(onRoute(cx,cz,7)) continue;                    // and not in the wagon's way
+    if(!clearOfTown(cx,cz,2.2)) continue;             // nor up against the tower or the mill
     cactus(cx,cz); cn++;
   }
   for(i=0;i<5;i++){                                   // a few landmark outcrops, well clear of town
     var la=rr(0,TAU), lr=rr(58,78);
     var lox=Math.cos(la)*lr, loz=Math.sin(la)*lr;
     if(onRoute(lox,loz,9)) continue;
+    if(!clearOfTown(lox,loz,4)) continue;             // and not through the church roof
     rock(lox,loz,rr(1.8,2.8),MAT.cliff);
   }
-  for(i=0;i<4;i++) skull(rr(-70,70),rr(-70,70));
+  for(i=0;i<4;i++){
+    for(var sg2=0;sg2<40;sg2++){
+      var sx2=rr(-70,70), sz2=rr(-70,70);
+      if(!clearOfTown(sx2,sz2,1.6)) continue;
+      skull(sx2,sz2); break;
+    }
+  }
   // boulders piled at the foot of the cliffs so the edge of the world reads as rock
   for(i=0;i<16;i++){                                 // scree, in a few clumps rather than a scatter
     var a2=rr(0,TAU), r2=rr(WORLD_R+2,WORLD_R+9);
@@ -3111,6 +3176,13 @@ function updatePlayer(dt){
   // stepping down a tread should stay a step, not a moment of freefall
   else if(wasOn&&P.vy<0&&P.y-gy<0.48){ P.y=gy; P.vy=0; P.onGround=true; }
   else P.onGround=false;
+
+  /* Land on whatever you clipped on the way down rather than being shoved out
+     of it sideways. Only for things you could plausibly be standing on - a
+     wall wants far more lift than this allows, and falls through to the
+     horizontal push, which is guarded. */
+  var need=clearanceAt(P.x,P.z,0.45);
+  if(need>-1e8&&P.y<need-0.15&&need-P.y<1.25){ P.y=need; P.vy=0; P.onGround=true; }
 
   if(riflePickup&&!riflePickup.taken){
     riflePickup.t+=dt;

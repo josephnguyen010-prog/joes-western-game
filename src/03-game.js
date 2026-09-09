@@ -403,6 +403,13 @@ function updatePlayer(dt){
   else if(wasOn&&P.vy<0&&P.y-gy<0.48){ P.y=gy; P.vy=0; P.onGround=true; }
   else P.onGround=false;
 
+  /* Land on whatever you clipped on the way down rather than being shoved out
+     of it sideways. Only for things you could plausibly be standing on - a
+     wall wants far more lift than this allows, and falls through to the
+     horizontal push, which is guarded. */
+  var need=clearanceAt(P.x,P.z,0.45);
+  if(need>-1e8&&P.y<need-0.15&&need-P.y<1.25){ P.y=need; P.vy=0; P.onGround=true; }
+
   if(riflePickup&&!riflePickup.taken){
     riflePickup.t+=dt;
     riflePickup.g.rotation.y+=dt*0.5;
