@@ -170,17 +170,45 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
 /* The bar fills by scaleX rather than width: a transform animates on the
    compositor, so it keeps gliding through the frames where the build has the
    main thread and a width transition would sit still. */
-#bar{height:15px;margin:22px 0 15px;border:2px solid #1E1611;background:rgba(30,22,17,.10)}
-#bar i{display:block;height:100%;background:#1E1611;transform:scaleX(0);transform-origin:0 50%;
+/* The loading screen takes the shape of the one that opens the portfolio: a
+   flat dark ground under scanlines, the name tracked out across the top, a
+   thin lit bar and a readout at either end of it. No runner hopping along the
+   rail - on the portfolio the bar is running to a timer and the sprite is the
+   honest part of that, whereas this one is counting real work, so a mascot on
+   it would be the only thing on screen pretending. In the game's own ink and
+   brass rather than the portfolio's purple, since it fronts a western. */
+#load{background:#141210;transition:opacity .5s ease}
+#load::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(to bottom,
+    rgba(235,224,203,.035) 0px, rgba(235,224,203,.035) 1px, transparent 1px, transparent 3px)}
+#load.fade{opacity:0}
+.loadbox{position:relative;z-index:1;width:min(680px,90vw);text-align:center}
+#load h1.loadname{margin:0;font-family:var(--type);color:var(--bone);white-space:nowrap;
+  font-size:clamp(.62rem,3.4vw,1.7rem);letter-spacing:.16em;line-height:1.3;
+  text-shadow:0 0 18px rgba(217,164,65,.5);
+  animation:bootIn 600ms cubic-bezier(.16,1,.3,1) both}
+#bar{position:relative;height:14px;margin:44px 0 0;border:2px solid rgba(185,154,110,.35);
+  background:rgba(235,224,203,.04);
+  animation:bootIn 600ms cubic-bezier(.16,1,.3,1) 240ms both}
+/* scaleX on the compositor, so it keeps gliding through the frames where the
+   build has the main thread and a width transition would sit still. */
+#bar i{display:block;height:100%;transform:scaleX(0);transform-origin:0 50%;
+  background:linear-gradient(90deg,var(--dust),var(--brass));
+  box-shadow:0 0 14px rgba(217,164,65,.6);
   transition:transform .55s cubic-bezier(.32,0,.16,1);
   animation:crawl 9s cubic-bezier(.15,.85,.3,1) forwards}
 /* Until the renderer is down off the wire there is nothing real to report, so
    the bar creeps. The script kills the animation the moment it has a number. */
 @keyframes crawl{from{transform:scaleX(0)}to{transform:scaleX(.10)}}
-#loadTxt{font-size:12px;letter-spacing:.2em;text-transform:uppercase;opacity:.78;min-height:1.5em;margin:0}
-#load{transition:opacity .5s ease}
-#load.fade{opacity:0}
-@media (prefers-reduced-motion:reduce){#bar i{transition:none;animation:none}#load{transition:none}}
+@keyframes bootIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.loadrow{display:flex;justify-content:space-between;gap:16px;margin:14px 0 0;
+  font-size:clamp(.7rem,2.4vw,.85rem);letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(235,224,203,.6);
+  animation:bootIn 600ms cubic-bezier(.16,1,.3,1) 300ms both}
+#loadTxt{min-height:1.5em}
+#loadPct{color:var(--brass);font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){#bar i{transition:none;animation:none}
+  #load,.loadbox *{transition:none;animation:none}}
 @media (prefers-reduced-motion:reduce){#grain{animation:none}}
 @media (max-width:680px){#compass,#feed{display:none}#cyl{width:70px;height:70px}#cyl u{width:14px;height:14px;margin:-7px}}
 </style>
@@ -280,14 +308,10 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
   </div>
 
   <div class="card" id="load">
-    <div class="sheet">
-      <div class="eyebrow">Cimarron County &middot; No Man&rsquo;s Land &middot; April 1889</div>
-      <h1>Joe&rsquo;s Wild West Game</h1>
-      <div class="rule dbl"></div>
+    <div class="loadbox">
+      <h1 class="loadname">JOE&rsquo;S WILD WEST GAME</h1>
       <div id="bar"><i id="barFill"></i></div>
-      <p id="loadTxt">loading the renderer&hellip;</p>
-      <p class="note">Everything here is generated in code &mdash; no image files, no audio
-        files. It is all being built now, which is what the bar is counting.</p>
+      <p class="loadrow"><span id="loadTxt">loading the renderer</span><span id="loadPct">0%</span></p>
     </div>
   </div>
 </div>
@@ -306,9 +330,11 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
    renderer - only their ratio matters. */
 var BUILD=[], BUILT=0, BUILD_W=0;
 function stage(label,weight,fn){ BUILD.push({label:label,w:weight,fn:fn}); BUILD_W+=weight; }
-var loadTxt=document.getElementById('loadTxt'), barFill=document.getElementById('barFill');
+var loadTxt=document.getElementById('loadTxt'), barFill=document.getElementById('barFill'),
+    loadPct=document.getElementById('loadPct');
 function setLoad(text,frac){
   if(loadTxt) loadTxt.textContent=text;
+  if(loadPct) loadPct.textContent=Math.round(frac*100)+'%';
   if(!barFill) return;
   barFill.style.animation='none';        // the creep hands over to real numbers
   barFill.style.transform='scaleX('+frac.toFixed(3)+')';
@@ -346,16 +372,13 @@ var AU={
     try{this.ctx=new AC();}catch(e){return;}
     var c=this.ctx;
     this.master=c.createGain(); this.master.gain.value=0.5; this.master.connect(c.destination);
+    /* One buffer of noise, which every burst - shots, hooves, impacts - plays a
+       slice of. It used to also feed a permanent bandpassed loop with an LFO
+       gusting it, which was the only thing you could hear with nothing going
+       on. That bed is gone; what is left all belongs to something happening. */
     var n=c.sampleRate*1.2, b=c.createBuffer(1,n,c.sampleRate), d=b.getChannelData(0);
     for(var i=0;i<n;i++) d[i]=Math.random()*2-1;
     this.noise=b;
-    var w=c.createBufferSource(); w.buffer=b; w.loop=true;
-    var wf=c.createBiquadFilter(); wf.type='bandpass'; wf.frequency.value=420; wf.Q.value=0.7;
-    var wg=c.createGain(); wg.gain.value=0.035;
-    var lfo=c.createOscillator(); lfo.frequency.value=0.09;
-    var lg=c.createGain(); lg.gain.value=0.022;
-    lfo.connect(lg); lg.connect(wg.gain); lfo.start();
-    w.connect(wf); wf.connect(wg); wg.connect(this.master); w.start();
     this.eng=c.createOscillator(); this.eng.type='sawtooth'; this.eng.frequency.value=42;
     this.engFilt=c.createBiquadFilter(); this.engFilt.type='lowpass'; this.engFilt.frequency.value=380;
     this.engGain=c.createGain(); this.engGain.gain.value=0;
@@ -437,12 +460,135 @@ var AU={
       o.connect(f); f.connect(g); g.connect(this.master); o.start(t0); o.stop(t0+0.42);
     }
   },
+  /* --- the two instruments in town, further down this file --- */
   engine:function(on,rpm){
     if(!this.ok)return;
     var g=this.engGain.gain, t=this.ctx.currentTime;
     g.setTargetAtTime(on?0.075:0,t,0.15);
     if(on){ this.eng.frequency.setTargetAtTime(36+rpm*46,t,0.08);
             this.engFilt.frequency.setTargetAtTime(300+rpm*900,t,0.1); }
+  }
+};
+
+/* ============================================================
+   4b. the piano in the Occidental and the organ in the church
+   ============================================================
+   Both are built out of oscillators like everything else here. The piano is a
+   struck string - harmonics on a hard attack and a long decay, laid down
+   twice with the second copy a few cents sharp, which is most of what gives a
+   saloon upright its out-of-tune shimmer. The organ is drawbars, held flat for
+   as long as the note lasts, through a hall made from a burst of noise
+   decaying, because an organ with no room around it sounds like a toy.
+
+   Neither is a bed: each one sits in a room and belongs to it. Out on the
+   street it is far off and muffled through the wall, and it opens up as you
+   come through the door. It also keeps playing whether you are listening or
+   not - the clock runs, and the notes are only built when someone is close
+   enough to hear them. */
+function midiHz(n){ return 440*Math.pow(2,(n-69)/12); }
+
+var MUSIC={
+  ok:false, verb:null, places:[],
+  init:function(){
+    if(this.ok||!AU.ok)return;
+    var c=AU.ctx, ch, i;
+    var len=Math.floor(c.sampleRate*2.4), ir=c.createBuffer(2,len,c.sampleRate);
+    for(ch=0;ch<2;ch++){
+      var d=ir.getChannelData(ch);
+      for(i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.8);
+    }
+    this.verb=c.createConvolver(); this.verb.buffer=ir;
+    var vg=c.createGain(); vg.gain.value=0.6;
+    this.verb.connect(vg); vg.connect(AU.master);
+    this.ok=true;
+  },
+  /* A room with something playing in it. `tracks` run independently, so the
+     left hand and the right hand keep their own place in the bar. */
+  add:function(kind,voice,bpm,level,wet,tracks){
+    if(!this.ok)return;
+    var c=AU.ctx, i;
+    var input=c.createGain(); input.gain.value=0;          // how near you are
+    var filt=c.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=380;
+    var send=c.createGain(); send.gain.value=wet;
+    input.connect(filt); filt.connect(AU.master);
+    filt.connect(send); send.connect(this.verb);
+    var tl=[];
+    for(i=0;i<tracks.length;i++) tl.push({seq:tracks[i],i:0,at:0});
+    this.places.push({kind:kind,voice:voice,spb:60/bpm,level:level,
+                      box:null,in:input,filt:filt,tracks:tl});
+  },
+  room:function(kind){
+    for(var i=0;i<interiors.length;i++) if(interiors[i].kind===kind) return interiors[i];
+    return null;
+  },
+  pianoNote:function(dest,f,t,dur,vel){
+    var c=AU.ctx, k, dt;
+    var g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vel,t+0.006);      // the hammer
+    g.gain.exponentialRampToValueAtTime(vel*0.30,t+0.16);  // and the string letting go
+    g.gain.exponentialRampToValueAtTime(0.0004,t+dur);
+    var lp=c.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(Math.min(9000,f*10),t);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(600,f*3),t+dur);
+    g.connect(lp); lp.connect(dest);
+    var part=[[1,1],[2,0.40],[3,0.17],[4,0.08]];
+    for(k=0;k<part.length;k++){
+      for(dt=0;dt<(k<2?2:1);dt++){                          // two strings to a note, low down
+        var o=c.createOscillator();
+        o.type=k?'sine':'triangle';
+        o.frequency.value=f*part[k][0];
+        o.detune.value=dt?6:0;                              // a few cents sharp
+        var pg=c.createGain(); pg.gain.value=part[k][1]*(dt?0.5:1);
+        o.connect(pg); pg.connect(g);
+        o.start(t); o.stop(t+dur+0.08);
+      }
+    }
+  },
+  organNote:function(dest,f,t,dur,vel){
+    var c=AU.ctx, k;
+    var g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vel,t+0.08);        // wind takes a moment
+    g.gain.setValueAtTime(vel,t+Math.max(0.10,dur-0.05));
+    g.gain.exponentialRampToValueAtTime(0.0004,t+dur+0.22);
+    g.connect(dest);
+    var draw=[[1,1],[2,0.52],[3,0.26],[4,0.18],[6,0.08]];   // 8ft, 4ft, twelfth, 2ft, larigot
+    for(k=0;k<draw.length;k++){
+      var o=c.createOscillator(); o.type='sine';
+      o.frequency.value=f*draw[k][0];
+      o.detune.value=(k%2)?5:-5;                            // ranks never quite agree
+      var pg=c.createGain(); pg.gain.value=draw[k][1];
+      o.connect(pg); pg.connect(g);
+      o.start(t); o.stop(t+dur+0.30);
+    }
+  },
+  strike:function(p,note,t,dur,vel){
+    var f=this[p.voice==='organ'?'organNote':'pianoNote'], i;
+    if(note instanceof Array){ for(i=0;i<note.length;i++) f.call(this,p.in,midiHz(note[i]),t,dur,vel/Math.sqrt(note.length)); }
+    else f.call(this,p.in,midiHz(note),t,dur,vel);
+  },
+  update:function(px,pz){
+    if(!this.ok)return;
+    var c=AU.ctx, now=c.currentTime, i, j;
+    for(i=0;i<this.places.length;i++){
+      var p=this.places[i];
+      if(!p.box){ p.box=this.room(p.kind); if(!p.box) continue; }
+      var dx=Math.max(p.box.x0-px,0,px-p.box.x1), dz=Math.max(p.box.z0-pz,0,pz-p.box.z1);
+      var v=clamp(1-Math.sqrt(dx*dx+dz*dz)/11,0,1);
+      p.in.gain.setTargetAtTime(p.level*v*v,now,0.30);
+      p.filt.frequency.setTargetAtTime(360+10600*v*v*v,now,0.30);   // the wall comes off it
+      for(j=0;j<p.tracks.length;j++){
+        var tr=p.tracks[j];
+        if(tr.at<now) tr.at=now+0.05;         // back after a spell away, pick it up here
+        while(tr.at<now+0.8){
+          var ev=tr.seq[tr.i];
+          if(v>0.02&&ev[0]) this.strike(p,ev[0],tr.at,ev[1]*p.spb*0.96,ev[2]||0.5);
+          tr.at+=ev[1]*p.spb;
+          tr.i=(tr.i+1)%tr.seq.length;
+        }
+      }
+    }
   }
 };
 
@@ -922,7 +1068,10 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
       var fl=(swz-ow/2)+d/2, rl=d/2-(swz+ow/2);
       S.part(WALLT,y1-y0,fl,wallMat,sx,(y0+y1)/2,-d/2+fl/2);
       S.part(WALLT,y1-y0,rl,wallMat,sx,(y0+y1)/2,d/2-rl/2);
-      S.part(0.05,y1-y0-0.10,ow-0.10,MAT.pane,sx,(y0+y1)/2,swz,false);
+      /* The glass is cut a touch larger than the hole and tucked inside the
+         wall, not trimmed to fit it. Cut smaller it leaves a slot right the
+         way round the pane that you can see daylight - and shoot - through. */
+      S.part(0.05,y1-y0+0.04,ow+0.04,MAT.pane,sx,(y0+y1)/2,swz,false);
       S.part(0.085,y1-y0-0.10,0.06,MAT.wood1,sx,(y0+y1)/2,swz,false);
       S.part(0.085,0.055,ow-0.10,MAT.wood1,sx,(y0+y1)/2,swz,false);
       S.part(0.13,0.11,ow+0.26,MAT.wood1,sx,y1+0.05,swz,false);
@@ -935,7 +1084,7 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
     S.part(w,h-by1,WALLT,wallMat,0,(h+by1)/2,d/2-WALLT/2);
     S.part(bside,by1-by0,WALLT,wallMat,-(bow+bside)/2,(by0+by1)/2,d/2-WALLT/2);
     S.part(bside,by1-by0,WALLT,wallMat, (bow+bside)/2,(by0+by1)/2,d/2-WALLT/2);
-    S.part(bow-0.10,by1-by0-0.10,0.05,MAT.pane,0,(by0+by1)/2,d/2-0.13,false);
+    S.part(bow+0.04,by1-by0+0.04,0.05,MAT.pane,0,(by0+by1)/2,d/2-0.13,false);
     S.part(0.06,by1-by0-0.10,0.085,MAT.wood1,0,(by0+by1)/2,d/2-0.11,false);
     S.part(bow-0.10,0.055,0.085,MAT.wood1,0,(by0+by1)/2,d/2-0.11,false);
     S.part(bow+0.28,0.11,0.13,MAT.wood1,0,by1+0.06,d/2-0.02,false);
@@ -953,7 +1102,7 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
         S.part(jw,HEAD-SILL,WALLT,wallMat,cx+ww/2+jw/2,(SILL+HEAD)/2,-d/2+WALLT/2);
         S.part(ww,0.10,0.34,MAT.wood1,cx,SILL+0.05,-d/2+0.04,false); // sill board
         var wy=(SILL+HEAD)/2, wh=HEAD-SILL;
-        S.part(ww-0.05,wh-0.06,0.035,MAT.pane,cx,wy,-d/2+0.13,false);  // glazing
+        S.part(ww+0.04,wh+0.04,0.035,MAT.pane,cx,wy,-d/2+0.13,false);  // glazing, lapped into the jambs
         S.part(0.045,wh-0.06,0.065,MAT.wood1,cx,wy,-d/2+0.11,false);   // muntins
         S.part(ww-0.05,0.045,0.065,MAT.wood1,cx,wy,-d/2+0.11,false);
         S.part(ww+0.20,0.10,0.12,MAT.wood1,cx,HEAD+0.06,-d/2+0.02,false);   // trim
@@ -979,7 +1128,7 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
     dressInterior(S,kind,w,d,h);
     var swp=Math.abs(Math.sin(face))>0.5;
     var iw=(swp?d:w)/2-WALLT-0.15, id=(swp?w:d)/2-WALLT-0.15;
-    interiors.push({x0:x-iw,x1:x+iw,z0:z-id,z1:z+id});
+    interiors.push({x0:x-iw,x1:x+iw,z0:z-id,z1:z+id,kind:kind});
   }else{
     S.part(w,h,d,shell,0,h/2,0);                                     // shuttered: a solid mass
     S.part(1.2,2.2,0.14,MAT.dark,0,1.1,-d/2-0.08,false);
@@ -1667,10 +1816,30 @@ stage('the church',5,function church(){
   S.part(2.4,0.08,0.95,MAT.wood1,0,1.04,D/2-2.0,false);
   S.part(0.14,1.5,0.14,MAT.dark,0,1.8,D/2-2.0,false);
   S.part(0.7,0.14,0.14,MAT.dark,0,2.15,D/2-2.0,false);
+  /* A harmonium off to the side of the altar. Something has to be making the
+     noise you hear in here. */
+  var ox=-3.4, oz=D/2-3.6;
+  S.part(1.70,1.02,0.72,MAT.inside,ox,0.51,oz,true);                // the case
+  S.part(1.78,0.08,0.80,MAT.wood1,ox,1.06,oz,false);                // its top
+  S.part(1.30,0.09,0.26,MAT.bone,ox,0.86,oz-0.40,false);            // the manual
+  S.part(1.24,0.05,0.13,MAT.dark,ox,0.91,oz-0.44,false);
+  S.part(1.66,0.26,0.10,MAT.wood1,ox,0.36,oz-0.40,false);           // the knee panel
+  for(var pi=0;pi<9;pi++){                                          // and the case pipes
+    var ph=0.46+(4-Math.abs(4-pi))*0.15;                            // graded up to the middle
+    var pp=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,ph,8),MAT.metal);
+    pp.position.set(ox-0.62+pi*0.155,1.14+ph/2,oz+0.10); g.add(pp); hitables.push(pp);
+    var cap=new THREE.Mesh(new THREE.ConeGeometry(0.058,0.11,8),MAT.metal);
+    cap.position.set(ox-0.62+pi*0.155,1.14+ph+0.05,oz+0.10); g.add(cap);
+  }
+  S.part(1.60,0.10,0.16,MAT.wood1,ox,1.11,oz+0.10,false);           // the rack they stand in
+  S.part(0.90,0.10,0.34,MAT.wood1,ox+0.05,0.52,oz-0.95,true);       // and a bench to sit at it
+  S.part(0.09,0.46,0.09,MAT.wood1,ox-0.32,0.25,oz-0.95,false);
+  S.part(0.09,0.46,0.09,MAT.wood1,ox+0.42,0.25,oz-0.95,false);
+  person(g,ox+0.05,0.03,oz-0.95,0,{coat:0x33302A,shirt:0xCEC2A8,seated:1,hat:'bonnet'});
   person(g,0,0,D/2-3.1,Math.PI,{coat:0x22201E,shirt:0x26241F,robe:1,collar:1,hair:0x4A4038});
   person(g,-2.2,0.15,-D/2+5.3,Math.PI,{coat:0x3A342C,shirt:0xC6BAA0,seated:1,hat:'bonnet'});
   person(g,2.2,0.15,-D/2+7.2,Math.PI,{coat:0x2E2A24,shirt:0xBFB399,vest:0x3A3028,seated:1,hat:'slouch'});
-  interiors.push({x0:CX-D/2+0.4,x1:CX+D/2-0.4,z0:CZ-W/2+0.4,z1:CZ+W/2-0.4});
+  interiors.push({x0:CX-D/2+0.4,x1:CX+D/2-0.4,z0:CZ-W/2+0.4,z1:CZ+W/2-0.4,kind:'church'});
   var win=new THREE.Mesh(new THREE.PlaneGeometry(1.6,3.0),
     new THREE.MeshLambertMaterial({color:0x2f4a63,emissive:0x101a24,side:THREE.DoubleSide}));
   win.position.set(0,3.4,D/2-WALLT-0.02); g.add(win);
@@ -3456,7 +3625,54 @@ function updateHud(dt){
 /* ============================================================
    20. ambient world motion
    ============================================================ */
+/* Both pieces are written for the room they are in rather than borrowed: a
+   twelve bar honky-tonk vamp in G for the Occidental, oom-pah in the left hand
+   and the right hand mostly on the chord tones, and a slow eight bar chorale in
+   F for the church. Bass and melody are separate tracks so each keeps its own
+   place in the bar. Notes are MIDI numbers, then beats, then how hard. */
+var bandStarted=false;
+function bandStart(){
+  if(bandStarted||!MUSIC.ok)return;
+  bandStarted=true;
+
+  // G G G G | C C G G | D C G D, as root, chord, fifth, chord
+  var BARS=[43,43,43,43,48,48,43,43,50,48,43,50], bass=[], b, r;
+  for(b=0;b<BARS.length;b++){
+    r=BARS[b];
+    bass.push([r,1,0.34]);
+    bass.push([[r+12,r+16,r+19],1,0.16]);
+    bass.push([r+7,1,0.30]);
+    bass.push([[r+12,r+16,r+19],1,0.16]);
+  }
+  var tune=[
+    [71,.5,.4],[74,.5,.4],[79,1,.5],[78,.5,.4],[76,.5,.4],[74,1,.42],
+    [71,.5,.4],[74,.5,.4],[71,.5,.4],[69,.5,.4],[67,2,.46],
+    [67,.5,.4],[71,.5,.4],[74,1,.46],[76,.5,.4],[74,.5,.4],[71,1,.42],
+    [69,1,.42],[71,1,.42],[74,2,.46],
+    [72,.5,.4],[76,.5,.4],[79,1,.5],[76,.5,.4],[72,.5,.4],[76,1,.42],
+    [77,.5,.42],[76,.5,.4],[74,.5,.4],[72,.5,.4],[71,2,.46],
+    [71,.5,.4],[74,.5,.4],[79,1,.5],[78,.5,.4],[76,.5,.4],[74,1,.42],
+    [74,.5,.4],[71,.5,.4],[69,.5,.4],[67,.5,.4],[67,2,.46],
+    [69,.5,.4],[74,.5,.4],[78,1,.48],[76,.5,.4],[74,.5,.4],[69,1,.42],
+    [72,.5,.4],[76,.5,.4],[79,1,.48],[77,.5,.4],[76,.5,.4],[72,1,.42],
+    [71,.5,.4],[74,.5,.4],[79,1,.5],[78,.5,.4],[76,.5,.4],[74,1,.42],
+    [74,1,.44],[72,1,.42],[71,1,.42],[0,1,0]
+  ];
+  MUSIC.add('saloon0','piano',116,0.85,0.16,[bass,tune]);
+
+  // F  Bb | C  F | Dm Bb | C  F, held long at the end and let go into the room
+  var hymn=[
+    [[41,65,69,72],4,.30],[[46,65,70,74],4,.30],
+    [[48,64,67,72],4,.30],[[41,65,69,77],4,.30],
+    [[50,65,69,74],4,.30],[[46,65,70,74],4,.30],
+    [[48,64,67,72],2,.30],[[48,65,69,72],2,.30],
+    [[41,65,69,72],6,.32],[0,2,0]
+  ];
+  MUSIC.add('church','organ',60,0.62,0.55,[hymn]);
+}
+
 function updateAmbient(dt,cam){
+  MUSIC.update(P.x,P.z);
   if(windmill) windmill.rotation.z-=dt*1.35;
   for(var i=0;i<weeds.length;i++){
     var w=weeds[i], m=w.m;
@@ -3548,7 +3764,7 @@ window.addEventListener('resize',function(){
    22. start, restart
    ============================================================ */
 function beginRun(){
-  AU.init(); AU.resume();
+  AU.init(); AU.resume(); MUSIC.init(); bandStart();
   GAME.state='play'; GAME.paused=false;
   GAME.kills=0; GAME.left=0; GAME.wave=0; GAME.shots=0; GAME.hits=0; GAME.t=0; GAME.hp=100; GAME.nextWaveT=3.2;
   P.x=-34; P.z=0; P.y=terrainH(-34,0); P.vy=0; P.yaw=-Math.PI/2; P.pitch=-0.02;

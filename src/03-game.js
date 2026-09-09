@@ -935,7 +935,54 @@ function updateHud(dt){
 /* ============================================================
    20. ambient world motion
    ============================================================ */
+/* Both pieces are written for the room they are in rather than borrowed: a
+   twelve bar honky-tonk vamp in G for the Occidental, oom-pah in the left hand
+   and the right hand mostly on the chord tones, and a slow eight bar chorale in
+   F for the church. Bass and melody are separate tracks so each keeps its own
+   place in the bar. Notes are MIDI numbers, then beats, then how hard. */
+var bandStarted=false;
+function bandStart(){
+  if(bandStarted||!MUSIC.ok)return;
+  bandStarted=true;
+
+  // G G G G | C C G G | D C G D, as root, chord, fifth, chord
+  var BARS=[43,43,43,43,48,48,43,43,50,48,43,50], bass=[], b, r;
+  for(b=0;b<BARS.length;b++){
+    r=BARS[b];
+    bass.push([r,1,0.34]);
+    bass.push([[r+12,r+16,r+19],1,0.16]);
+    bass.push([r+7,1,0.30]);
+    bass.push([[r+12,r+16,r+19],1,0.16]);
+  }
+  var tune=[
+    [71,.5,.4],[74,.5,.4],[79,1,.5],[78,.5,.4],[76,.5,.4],[74,1,.42],
+    [71,.5,.4],[74,.5,.4],[71,.5,.4],[69,.5,.4],[67,2,.46],
+    [67,.5,.4],[71,.5,.4],[74,1,.46],[76,.5,.4],[74,.5,.4],[71,1,.42],
+    [69,1,.42],[71,1,.42],[74,2,.46],
+    [72,.5,.4],[76,.5,.4],[79,1,.5],[76,.5,.4],[72,.5,.4],[76,1,.42],
+    [77,.5,.42],[76,.5,.4],[74,.5,.4],[72,.5,.4],[71,2,.46],
+    [71,.5,.4],[74,.5,.4],[79,1,.5],[78,.5,.4],[76,.5,.4],[74,1,.42],
+    [74,.5,.4],[71,.5,.4],[69,.5,.4],[67,.5,.4],[67,2,.46],
+    [69,.5,.4],[74,.5,.4],[78,1,.48],[76,.5,.4],[74,.5,.4],[69,1,.42],
+    [72,.5,.4],[76,.5,.4],[79,1,.48],[77,.5,.4],[76,.5,.4],[72,1,.42],
+    [71,.5,.4],[74,.5,.4],[79,1,.5],[78,.5,.4],[76,.5,.4],[74,1,.42],
+    [74,1,.44],[72,1,.42],[71,1,.42],[0,1,0]
+  ];
+  MUSIC.add('saloon0','piano',116,0.85,0.16,[bass,tune]);
+
+  // F  Bb | C  F | Dm Bb | C  F, held long at the end and let go into the room
+  var hymn=[
+    [[41,65,69,72],4,.30],[[46,65,70,74],4,.30],
+    [[48,64,67,72],4,.30],[[41,65,69,77],4,.30],
+    [[50,65,69,74],4,.30],[[46,65,70,74],4,.30],
+    [[48,64,67,72],2,.30],[[48,65,69,72],2,.30],
+    [[41,65,69,72],6,.32],[0,2,0]
+  ];
+  MUSIC.add('church','organ',60,0.62,0.55,[hymn]);
+}
+
 function updateAmbient(dt,cam){
+  MUSIC.update(P.x,P.z);
   if(windmill) windmill.rotation.z-=dt*1.35;
   for(var i=0;i<weeds.length;i++){
     var w=weeds[i], m=w.m;
@@ -1027,7 +1074,7 @@ window.addEventListener('resize',function(){
    22. start, restart
    ============================================================ */
 function beginRun(){
-  AU.init(); AU.resume();
+  AU.init(); AU.resume(); MUSIC.init(); bandStart();
   GAME.state='play'; GAME.paused=false;
   GAME.kills=0; GAME.left=0; GAME.wave=0; GAME.shots=0; GAME.hits=0; GAME.t=0; GAME.hp=100; GAME.nextWaveT=3.2;
   P.x=-34; P.z=0; P.y=terrainH(-34,0); P.vy=0; P.yaw=-Math.PI/2; P.pitch=-0.02;
