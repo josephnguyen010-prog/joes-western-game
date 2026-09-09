@@ -1610,10 +1610,36 @@ function dressInterior(S,kind,w,d,h){
     it(2.6,1.12,0.62,MAT.inside,-w/2+2.0,0.56,-d*0.2,true);          // front desk
     it(2.8,0.09,0.8,MAT.wood1,-w/2+2.0,1.17,-d*0.2);
     it(1.0,1.4,0.18,MAT.inside,-w/2+0.7,1.8,-d*0.2);
-    for(i=0;i<7;i++){                                                 // stairs to a floor you cannot reach
-      it(2.0,0.22,0.42,MAT.wood1,w/2-1.6,0.16+i*0.30,back-i*0.44,true);
+    /* The stairs used to climb seven treads and stop in mid air. They run the
+       full storey now and arrive at a gallery down the side of the room, with
+       the guest rooms off it - somewhere to be, rather than a prop. */
+    var stN=9, stRise=0.30, stRun=0.44, stX=w/2-1.6;
+    for(i=0;i<stN;i++){
+      /* Treads carry no footprint, the way the flight up to the Occidental
+         roof does. As blockers they stop you 45cm short - the width of you -
+         so your middle never reaches the tread and the step-up never fires,
+         which is a staircase you can stand at the bottom of and nothing more.
+         The platform is cut deeper than the tread so there is no seam to drop
+         through between one and the next. */
+      it(2.0,0.22,0.42,MAT.wood1,stX,0.16+i*stRise,back-i*stRun,false);
+      S.platform(stX,back-i*stRun,2.0,0.56,0.16+i*stRise+0.11);
     }
-    it(0.14,2.4,0.14,MAT.inside,w/2-2.6,1.2,back-2.6);
+    var galY=0.16+(stN-1)*stRise+0.11;                                // the top tread
+    var gz1=back-(stN-1)*stRun+0.22, gz0=-d/2+0.6, gzc=(gz0+gz1)/2, gzl=gz1-gz0;
+    it(2.6,0.18,gzl,MAT.wood1,w/2-1.5,galY-0.09,gzc,false);           // the landing deck
+    S.platform(w/2-1.5,gzc,2.6,gzl,galY);
+    for(i=0;i*0.52<gzl-0.3;i++)                                       // balusters along the open edge
+      it(0.08,0.92,0.08,MAT.wood1,w/2-2.74,galY+0.46,gz0+0.2+i*0.52,false);
+    it(0.12,0.10,gzl,MAT.wood1,w/2-2.74,galY+0.95,gzc,false);         // handrail
+    it(0.14,1.02,0.14,MAT.inside,w/2-2.74,galY+0.51,gz0+0.12,false);  // newel at each end
+    it(0.14,1.02,0.14,MAT.inside,w/2-2.74,galY+0.51,gz1-0.12,false);
+    S.blocker(w/2-2.76,gzc,0.16,gzl,galY+1.0);                        // and you cannot walk off it
+    for(i=-1;i<=1;i+=2){                                              // two guest room doors
+      it(0.10,2.24,1.16,MAT.wood1,w/2-0.30,galY+1.12,gzc+i*1.30,false);
+      it(0.06,2.05,1.00,PLANKDOOR,w/2-0.34,galY+1.02,gzc+i*1.30,false);
+      it(0.05,0.05,0.10,MAT.brass,w/2-0.40,galY+0.98,gzc+i*1.30-0.36,false);
+    }
+    it(0.14,2.4,0.14,MAT.inside,w/2-2.6,1.2,back+0.12);               // newel at the foot
     it(1.3,0.06,2.0,MAT.cloth,0,0.13,0.6);                            // rug
   }else if(kind==='office'){
     it(1.9,0.94,0.9,MAT.inside,0,0.47,-d*0.1,true);
