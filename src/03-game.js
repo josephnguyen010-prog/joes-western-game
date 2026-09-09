@@ -191,7 +191,6 @@ function toTitle(){
   P.fireHeld=false; dragging=false;
   ui.feed.innerHTML=''; ui.state.textContent=''; stateMsgT=0; lastStateTxt=null;
   titleT=0;
-  armStart();                                    // and any key will do again
   setTimeout(function(){ try{ $('start').focus(); }catch(err){} },60);
 }
 
@@ -1126,13 +1125,13 @@ $('showKeys').addEventListener('click',function(){
    one under way. Nothing is clickable until the last of them is done. */
 function runBuild(){
   if(!BUILD.length){
-    setLoad('READY',1);
+    setLoad('Ready',1);
     requestAnimationFrame(frame);
     setTimeout(ready,420);
     return;
   }
   var s=BUILD[0];
-  setLoad('LOADING',0.12+0.88*(BUILT/BUILD_W));
+  setLoad(s.label,0.12+0.88*(BUILT/BUILD_W));
   requestAnimationFrame(function(){
     BUILD.shift(); s.fn(); BUILT+=s.w;
     runBuild();
@@ -1142,27 +1141,16 @@ function runBuild(){
 /* Nothing gets you past this screen until the bar is full - same as the
    portfolio, where the sequence cannot be skipped. Then the button turns up
    and a click or a key anywhere will do, so you are not hunting for it. */
-var armed=false;
-function armStart(){
-  if(armed)return;
-  armed=true;
-  var go=function(ev){
-    if(GAME.state!=='title')return;
-    if(ev&&ev.type==='keydown'&&(ev.code==='Escape'||ev.code==='Tab'))return;
-    window.removeEventListener('keydown',go); window.removeEventListener('mousedown',go);
-    armed=false;
-    beginRun();
-  };
-  window.addEventListener('keydown',go); window.addEventListener('mousedown',go);
-}
+/* The bar hands its place over to the button, so the card never offers a way
+   in before there is one. */
 function ready(){
-  $('loadAction').classList.add('on');
+  $('loadRow').hidden=true;
+  $('start').hidden=false;
   try{ $('start').focus(); }catch(e){}
-  armStart();
 }
 runBuild();
 }
 
-setLoad('LOADING',0.12);
+setLoad('Mixing the paint',0.12);
 requestAnimationFrame(function(){ requestAnimationFrame(boot); });
 })();

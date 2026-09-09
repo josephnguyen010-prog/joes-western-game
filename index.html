@@ -170,64 +170,26 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
 /* The bar fills by scaleX rather than width: a transform animates on the
    compositor, so it keeps gliding through the frames where the build has the
    main thread and a width transition would sit still. */
-/* The opening screen is the one that opens the portfolio, in its colours and
-   its typeface rather than the game's: flat #0d1116 under scanlines, the name
-   tracked out in monospace, a thin lit bar in the accent purple, LOADING and a
-   count either end of it, and PRESS START once the bar is full. No runner and
-   no obstacles - on the portfolio the bar runs to a timer and the sprite is
-   the honest part of that, but this one is counting a real build.
-   It is also the only screen before the game now. It used to hand over to a
-   second card once it finished, so on anything quick you never saw it. */
-#title{background:#0d1116;transition:opacity .45s ease, transform .45s ease}
-#title.fade{opacity:0;transform:scale(1.04);pointer-events:none}
-#title::after{content:"";position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(to bottom,
-    rgba(255,255,255,.035) 0px, rgba(255,255,255,.035) 1px, transparent 1px, transparent 3px)}
-.ls-inner{position:relative;z-index:1;width:min(680px,90vw);text-align:center;
-  font-family:'Courier Prime',source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace}
-.ls-eyebrow{margin:0 0 14px;font-size:.62rem;letter-spacing:.34em;color:rgba(255,255,255,.32);
-  animation:bootIn 600ms cubic-bezier(.16,1,.3,1) both}
-#title h1.ls-name{margin:0;font-family:inherit;white-space:nowrap;color:#fff;
-  font-size:clamp(.6rem,3.6vw,1.75rem);letter-spacing:.16em;line-height:1.3;
-  text-shadow:0 0 18px rgba(123,63,228,.55);
-  animation:bootIn 600ms cubic-bezier(.16,1,.3,1) both}
-.ls-track{position:relative;height:14px;margin:44px 0 0;border:2px solid rgba(255,255,255,.25);
-  background:rgba(255,255,255,.04);
-  animation:bootIn 600ms cubic-bezier(.16,1,.3,1) 240ms both}
-/* scaleX rides the compositor, so it keeps gliding through the frames where
-   the build owns the main thread and an animated width would sit still. */
-.ls-fill{display:block;height:100%;transform:scaleX(0);transform-origin:0 50%;
-  background:linear-gradient(90deg,#5000ca,#7b3fe4);box-shadow:0 0 14px rgba(123,63,228,.7);
+/* The card is up from the first paint and the bar loads in the slot the button
+   will take, so the one control on the screen is either the progress or the way
+   in - never a button that looks ready and does nothing. The slot is held to
+   one height so swapping one for the other does not shift the card. */
+#startSlot{min-height:78px;margin-top:20px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center}
+#loadRow{width:min(420px,80%)}
+#bar{height:13px;border:2px solid #1E1611;background:rgba(30,22,17,.10)}
+/* scaleX rides the compositor, so it keeps gliding through the frames where the
+   build owns the main thread and an animated width would sit still. */
+#bar i{display:block;height:100%;background:#1E1611;transform:scaleX(0);transform-origin:0 50%;
   transition:transform .55s cubic-bezier(.32,0,.16,1);
   animation:crawl 9s cubic-bezier(.15,.85,.3,1) forwards}
+/* Until the renderer is down off the wire there is nothing real to report, so
+   the bar creeps. The script kills the animation the moment it has a number. */
 @keyframes crawl{from{transform:scaleX(0)}to{transform:scaleX(.10)}}
-.ls-status{display:flex;justify-content:space-between;margin:14px 0 0;
-  font-size:clamp(.7rem,2.4vw,.85rem);letter-spacing:.2em;color:rgba(255,255,255,.6);
-  animation:bootIn 600ms cubic-bezier(.16,1,.3,1) 300ms both}
-#loadPct{color:#7b3fe4;font-variant-numeric:tabular-nums}
-/* the row is held open so nothing jumps when the button arrives */
-.ls-action{min-height:92px;margin-top:40px;visibility:hidden}
-.ls-action.on{visibility:visible}
-.ls-start{display:inline-block;padding:12px 26px;font-family:inherit;
-  font-size:clamp(.85rem,3vw,1.05rem);letter-spacing:.28em;color:#fff;background:transparent;
-  border:2px solid rgba(255,255,255,.5);cursor:pointer;pointer-events:auto;
-  animation:bootIn 400ms cubic-bezier(.16,1,.3,1) both, blink 900ms steps(1,end) 150ms infinite;
-  transition:background-color 200ms ease,border-color 200ms ease,color 200ms ease}
-.ls-start:hover,.ls-start:focus-visible{background:#5000ca;border-color:#7b3fe4;color:#fff;outline:none}
-.ls-start:focus-visible{box-shadow:0 0 0 3px rgba(123,63,228,.5)}
-.ls-hint{margin:12px 0 0;font-size:.7rem;letter-spacing:.14em;color:rgba(255,255,255,.3)}
-.ls-blurb{margin:26px auto 0;max-width:56ch;font-size:.72rem;line-height:1.8;
-  letter-spacing:.06em;color:rgba(255,255,255,.42)}
-.ls-keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:6px 22px;
-  margin:20px 0 0;text-align:left}
-.ls-keys div{display:flex;justify-content:space-between;gap:10px;font-size:.64rem;
-  letter-spacing:.08em;color:rgba(255,255,255,.34);
-  border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:4px}
-.ls-keys b{font-weight:400;color:rgba(255,255,255,.62)}
-@keyframes bootIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-@keyframes blink{0%,54%{opacity:1}55%,100%{opacity:.15}}
-@media (prefers-reduced-motion:reduce){#title,#title *{transition:none;animation:none}
-  .ls-fill{transition:none;animation:none}}
+#loadRow p{display:flex;justify-content:space-between;margin:8px 0 0;
+  font-size:11px;letter-spacing:.22em;text-transform:uppercase;opacity:.66}
+#start[hidden],#loadRow[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){#bar i{transition:none;animation:none}}
 @media (prefers-reduced-motion:reduce){#grain{animation:none}}
 @media (max-width:680px){#compass,#feed{display:none}#cyl{width:70px;height:70px}#cyl u{width:14px;height:14px;margin:-7px}}
 </style>
@@ -262,25 +224,27 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
   </div>
 
   <div class="card" id="title">
-    <div class="ls-inner">
-      <p class="ls-eyebrow">CIMARRON COUNTY &middot; NO MAN&rsquo;S LAND &middot; APRIL 1889</p>
-      <h1 class="ls-name">JOE&rsquo;S WILD WEST GAME</h1>
-      <div class="ls-track"><i class="ls-fill" id="barFill"></i></div>
-      <p class="ls-status"><span id="loadTxt">LOADING</span><span id="loadPct">0%</span></p>
-      <div class="ls-action" id="loadAction">
-        <button class="ls-start" id="start" type="button">&#9656; PRESS START &#9666;</button>
-        <p class="ls-hint">click anywhere or press any key</p>
+    <div class="sheet">
+      <div class="eyebrow">Cimarron County &middot; No Man&rsquo;s Land &middot; April 1889</div>
+      <h1>Joe&rsquo;s Wild West Game</h1>
+      <div class="rule dbl"></div>
+      <p class="sub">No sheriff between here and Texas. Thirteen of the Prine outfit, three saloons, and one man with a Springfield on the Occidental roof.</p>
+      <div class="keys">
+        <div><span>Mouse</span><span>look and aim</span></div>
+        <div><span>W A S D</span><span>move, Shift to run</span></div>
+        <div><span>Left click</span><span>fire</span></div>
+        <div><span>Right hold</span><span>aim down the sights</span></div>
+        <div><span>R</span><span>reload</span></div>
+        <div><span>F</span><span>ride the wagon / get down</span></div>
+        <div><span>1 / 2, wheel</span><span>Colt / Springfield rifle</span></div>
+        <div><span>Esc</span><span>pause, and the rest of the keys</span></div>
       </div>
-      <p class="ls-blurb">No sheriff between here and Texas. Thirteen of the Prine outfit, three saloons, and one man with a Springfield on the Occidental roof.</p>
-      <div class="ls-keys">
-        <div><b>Mouse</b><span>look and aim</span></div>
-        <div><b>W A S D</b><span>move, Shift to run</span></div>
-        <div><b>Left click</b><span>fire</span></div>
-        <div><b>Right hold</b><span>aim down the sights</span></div>
-        <div><b>R</b><span>reload</span></div>
-        <div><b>F</b><span>ride the wagon</span></div>
-        <div><b>1 / 2, wheel</b><span>Colt / Springfield</span></div>
-        <div><b>Esc</b><span>pause, and the rest</span></div>
+      <div id="startSlot">
+        <div id="loadRow">
+          <div id="bar"><i id="barFill"></i></div>
+          <p><span id="loadTxt">Building the town</span><span id="loadPct">0%</span></p>
+        </div>
+        <button class="go" id="start" type="button" hidden>Step into the street</button>
       </div>
     </div>
   </div>
@@ -2936,7 +2900,6 @@ function toTitle(){
   P.fireHeld=false; dragging=false;
   ui.feed.innerHTML=''; ui.state.textContent=''; stateMsgT=0; lastStateTxt=null;
   titleT=0;
-  armStart();                                    // and any key will do again
   setTimeout(function(){ try{ $('start').focus(); }catch(err){} },60);
 }
 
@@ -3871,13 +3834,13 @@ $('showKeys').addEventListener('click',function(){
    one under way. Nothing is clickable until the last of them is done. */
 function runBuild(){
   if(!BUILD.length){
-    setLoad('READY',1);
+    setLoad('Ready',1);
     requestAnimationFrame(frame);
     setTimeout(ready,420);
     return;
   }
   var s=BUILD[0];
-  setLoad('LOADING',0.12+0.88*(BUILT/BUILD_W));
+  setLoad(s.label,0.12+0.88*(BUILT/BUILD_W));
   requestAnimationFrame(function(){
     BUILD.shift(); s.fn(); BUILT+=s.w;
     runBuild();
@@ -3887,28 +3850,17 @@ function runBuild(){
 /* Nothing gets you past this screen until the bar is full - same as the
    portfolio, where the sequence cannot be skipped. Then the button turns up
    and a click or a key anywhere will do, so you are not hunting for it. */
-var armed=false;
-function armStart(){
-  if(armed)return;
-  armed=true;
-  var go=function(ev){
-    if(GAME.state!=='title')return;
-    if(ev&&ev.type==='keydown'&&(ev.code==='Escape'||ev.code==='Tab'))return;
-    window.removeEventListener('keydown',go); window.removeEventListener('mousedown',go);
-    armed=false;
-    beginRun();
-  };
-  window.addEventListener('keydown',go); window.addEventListener('mousedown',go);
-}
+/* The bar hands its place over to the button, so the card never offers a way
+   in before there is one. */
 function ready(){
-  $('loadAction').classList.add('on');
+  $('loadRow').hidden=true;
+  $('start').hidden=false;
   try{ $('start').focus(); }catch(e){}
-  armStart();
 }
 runBuild();
 }
 
-setLoad('LOADING',0.12);
+setLoad('Mixing the paint',0.12);
 requestAnimationFrame(function(){ requestAnimationFrame(boot); });
 })();
 </script>
