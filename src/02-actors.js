@@ -2,8 +2,17 @@
 /* ============================================================
    8. line of sight against the town footprints
    ============================================================ */
-function losClear(ax,az,bx,bz){
-  var dx=bx-ax, dz=bz-az;
+/* Pass ay and by - the height of each end - and the footprints are treated as
+   the boxes they actually are rather than as walls of infinite height. Without
+   them this is the old flat test, where anything whose footprint the line
+   crosses blocks it outright.
+
+   The heights matter for exactly one shooter, but he is the one who hurts: the
+   rifleman is on a roof, and from up there he genuinely can see over a water
+   trough and a boardwalk rail. Run flat, the test would have him blocked by the
+   saloon he is standing on. */
+function losClear(ax,az,bx,bz,ay,by){
+  var dx=bx-ax, dz=bz-az, tall=(ay!==undefined);
   for(var i=0;i<blockers.length;i++){
     var b=blockers[i], t0=0, t1=1, ok=true;
     for(var a=0;a<2;a++){
@@ -14,7 +23,16 @@ function losClear(ax,az,bx,bz){
       if(ta>t0)t0=ta; if(tb<t1)t1=tb;
       if(t0>t1){ok=false;break;}
     }
-    if(ok) return false;
+    if(!ok) continue;
+    if(!tall) return false;
+    /* The line crosses this footprint between t0 and t1. Height runs linearly
+       along it, so the lowest it gets over that stretch is at one end or the
+       other - if even that clears the top of the box, the shot passes over it,
+       and if it does not, the shot is in the box. That second case is what
+       stops him firing through the building you are stood behind: the line goes
+       in over the near wall and is still underground at the far one. */
+    var e0=ay+(by-ay)*t0, e1=ay+(by-ay)*t1;
+    if(Math.min(e0,e1)<b.top) return false;
   }
   return true;
 }
@@ -355,7 +373,8 @@ function Outlaw(x,z,name){
   var e={
     g:g,name:name,hp:100,dead:false,state:'walk',
     x:x,z:z,yaw:0,phase:rr(0,TAU),fireCd:rr(0.8,2.6),strafe:rr(-1,1)>0?1:-1,strafeCd:rr(1,3),
-    legL:legL,legR:legR,armL:armL,armR:armR,torso:torso,head:head,fallT:0,hitT:0,speed:rr(2.6,3.5)
+    legL:legL,legR:legR,armL:armL,armR:armR,torso:torso,head:head,fallT:0,hitT:0,speed:rr(2.6,3.5),
+    present:0,kick:0                   // how far the pistol is up, and the recoil off the last shot
   };
   torso.userData.owner=e; head.userData.owner=e;
   g.position.set(x,terrainH(x,z),z);
@@ -395,35 +414,104 @@ function Rifleman(x,y,z,yaw,name){
   var hatm=new THREE.MeshLambertMaterial({color:0x2A231B});
   function bx(w,h,d,m,px,py,pz,p){var q=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);q.position.set(px,py,pz);q.castShadow=true;(p||g).add(q);return q;}
 
-  bx(0.22,0.62,0.24,shirt,-0.15,0.31,0);                      // braced on one knee
-  var kneel=bx(0.22,0.24,0.62,shirt,0.16,0.12,0.14);
-  bx(0.20,0.46,0.22,shirt,0.16,0.35,-0.12);
-  bx(0.60,0.50,0.38,coat,0,0.80,0);
-  var torso=bx(0.56,0.58,0.34,coat,0,1.26,0);
-  torso.userData={owner:null,part:'body'};
-  var armL=bx(0.14,0.52,0.16,coat,-0.32,1.44,0.04);
-  armL.geometry.translate(0,-0.26,0); armL.position.y=1.50; armL.rotation.x=-1.25;
-  var armR=bx(0.14,0.52,0.16,coat, 0.32,1.44,0.04);
-  armR.geometry.translate(0,-0.26,0); armR.position.y=1.50; armR.rotation.x=-1.05;
-  var head=new THREE.Mesh(new THREE.SphereGeometry(0.15,10,8),skin);
-  head.position.set(0,1.70,0.02); head.castShadow=true; g.add(head);
-  head.userData={owner:null,part:'head'};
-  var crown=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.17,0.16,10),hatm);
-  crown.position.y=1.84; crown.castShadow=true; g.add(crown);
-  var brim=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.026,12),hatm);
-  brim.position.y=1.76; brim.castShadow=true; g.add(brim);
+  /* Prone, stretched out down the roof with the rifle through the notch in the
+     false front. He is built along his own +z, head and rifle at the front and
+     boots trailing back, and the tracking turns the whole of him.
 
-  // the same Springfield you will be taking off him
-  var rifle=new THREE.Group(); rifle.position.set(0.05,1.40,0.30); g.add(rifle);
-  springfield(rifle,false);
+     Everything above the sill is everything you can hit: the crown of the hat,
+     the head, and the top half of his back. That is the trade the notch makes -
+     he gets a lane down the street and you get the same lane back at him. */
+  /* The shape of a man shooting lying down, which is a long low wedge: boots at
+     the back, the body tapering up onto the elbows, and the head tucked in
+     behind the breech. Two things carry it. One leg runs straight back and the
+     other has the knee cocked out to the side, which rolls him off his belly
+     and is the whole difference between a prone man and a plank; and the hat is
+     pushed back off his brow instead of sitting level, because a flat brim seen
+     from the street below is a dinner plate with a man hidden under it - which
+     is exactly what it looked like. */
+  /* Limbs are placed by their ends, not by angles. For a man lying down the
+     joints are the part you can actually reason about - elbow planted there,
+     hand on the forestock there - and working back from that to an Euler angle
+     per limb is how the arms ended up stuck out sideways like wings. */
+  function bone(ax,ay,az,bX,bY,bZ,th,m){
+    var dx=bX-ax, dy=bY-ay, dz=bZ-az;
+    var q=new THREE.Mesh(new THREE.BoxGeometry(th,th,Math.sqrt(dx*dx+dy*dy+dz*dz)),m);
+    q.position.set((ax+bX)/2,(ay+bY)/2,(az+bZ)/2);
+    q.lookAt(bX,bY,bZ);                                       // the box runs down its own +z
+    q.castShadow=true; g.add(q); return q;
+  }
+
+  bone(-0.14,0.09,-0.55,-0.15,0.08,-1.30,0.18,shirt);         // left leg, straight out behind
+  bx(0.18,0.13,0.24,shirt,-0.15,0.07,-1.42);                  // sole of the boot
+  /* The knee goes out and the shin comes back in behind it. Run the shin out to
+     the side as well and he is not cocking a knee, he is frog-legged. */
+  bone(0.14,0.09,-0.52,0.44,0.09,-0.86,0.18,shirt);           // right thigh, knee cocked out
+  bone(0.44,0.09,-0.86,0.33,0.08,-1.32,0.16,shirt);           // shin, tucked back in
+  bx(0.16,0.13,0.22,shirt,0.31,0.07,-1.42);
+
+  bx(0.46,0.21,0.55,coat,0,0.13,-0.34);                       // hips, coat tail rucked over them
+  var torso=bx(0.50,0.26,0.66,coat,0,0.21,0.10);              // down on his chest
+  torso.userData={owner:null,part:'body'};
+  bx(0.52,0.17,0.22,coat,0,0.28,0.34);                        // shoulders
+
+  /* Elbows planted wide on the deck with the forearms running in to the rifle -
+     this is the shape that says prone from the street, and it is what was
+     missing. The left hand is out under the forestock, the right is back on the
+     grip. */
+  bone(-0.24,0.28,0.26,-0.30,0.07,0.52,0.12,coat);            // left upper arm, down to the deck
+  var armL=bone(-0.30,0.07,0.52,0.06,0.20,1.10,0.11,coat);    // forearm, out to the forestock
+  bone(0.26,0.28,0.26,0.32,0.07,0.46,0.12,coat);              // right upper arm
+  var armR=bone(0.32,0.07,0.46,0.17,0.24,0.72,0.11,coat);     // forearm, back to the grip
+
+  var head=new THREE.Mesh(new THREE.SphereGeometry(0.145,10,8),skin);
+  head.position.set(-0.01,0.35,0.52); head.castShadow=true; g.add(head);
+  head.userData={owner:null,part:'head'};
+  /* Tipped back as one piece, so the brim clears his eyeline instead of lying
+     across it - and so there is a face under it from where you are standing. */
+  var hat=new THREE.Group(); hat.position.set(-0.01,0.39,0.45); hat.rotation.x=-0.60; g.add(hat);
+  var crown=new THREE.Mesh(new THREE.CylinderGeometry(0.142,0.160,0.15,10),hatm);
+  crown.position.y=0.085; crown.castShadow=true; hat.add(crown);
+  var brim=new THREE.Mesh(new THREE.CylinderGeometry(0.265,0.265,0.026,12),hatm);
+  brim.position.y=0.012; brim.castShadow=true; hat.add(brim);
+
+  /* The same Springfield you will be taking off him. It is modelled lying down
+     its own -z, muzzle forward of the breech, and he is built kneeling towards
+     +z - so dropped in as it comes it lies backwards along him, the barrel
+     running back through his chest and the butt out where the muzzle should be.
+     The half turn is what puts it to his shoulder.
+
+     `rifle` stays the elevation pivot, unturned, so the tracking code above can
+     go on tilting it about a plain x axis; only the woodwork inside is turned
+     round. */
+  /* The pivot goes at the butt, where his shoulder is, not under the middle of
+     the rifle. Tilting a rifle about its middle swings the butt up and back as
+     the muzzle goes down, and since he has to depress it hard to reach the
+     street from up here, the butt was coming back through his head. Held at the
+     shoulder the butt stays put and only the barrel moves, which is both what a
+     shoulder is for and the difference between aiming and being speared.
+
+     The model runs from a buttplate at +0.51 to a muzzle at -0.84, so turning it
+     about and pushing it forward 0.51 puts the butt exactly on the pivot. */
+  var rifle=new THREE.Group(); rifle.position.set(0.13,0.30,0.30); g.add(rifle);
+  var stock=new THREE.Group(); stock.rotation.y=Math.PI; stock.position.z=0.51; rifle.add(stock);
+  springfield(stock,false);
   var glint=new THREE.Mesh(new THREE.SphereGeometry(0.026,8,6),
     new THREE.MeshBasicMaterial({color:0xFFF0C0,transparent:true,opacity:0}));
-  glint.position.set(0,0.020,-0.30); rifle.add(glint);        // sun off the barrel band
+  /* Out along the barrel, past the front of the building - the tell has to be
+     on the part of the rifle that is through the gap, or it flashes behind the
+     planking where nobody can see it. */
+  glint.position.set(0,0.020,-0.58); stock.add(glint);
+  /* The end of the barrel, as a thing that can be asked where it is. His shot
+     leaves here and his line of sight is taken from here, so the notch he is
+     firing through cannot be in the way of a shot that starts beyond it - which
+     is what happens if you measure the sight line from the middle of a man
+     lying a metre back from the wall. */
+  var muz=new THREE.Object3D(); muz.position.set(0,0.016,-0.85); stock.add(muz);
 
   g.position.set(x,y,z); g.rotation.y=yaw; world.add(g);
   var e={
     g:g,name:name,kind:'sniper',hp:100,dead:false,state:'aim',
-    x:x,y:y,z:z,yaw:yaw,rifle:rifle,glint:glint,glintM:glint.material,
+    x:x,y:y,z:z,yaw:yaw,rifle:rifle,muzzle:muz,glint:glint,glintM:glint.material,
     fireCd:4.2,charge:0,phase:0,strafe:1,strafeCd:9,hitT:0,fallT:0,speed:0,
     legL:{hip:{rotation:{x:0}},knee:{rotation:{x:0}}},
     legR:{hip:{rotation:{x:0}},knee:{rotation:{x:0}}},armL:armL,armR:armR,torso:torso,head:head

@@ -99,6 +99,13 @@ body.cursoraim.playing #app{cursor:none}
 #bars b.on{background:linear-gradient(180deg,var(--bone),var(--dust));border-color:var(--bone)}
 #bars b.low{background:linear-gradient(180deg,var(--oxide),#7d2a1c);border-color:var(--oxide)}
 #state{margin-top:9px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass);min-height:14px}
+/* F3. Draw calls are the number that matters on this page - the frame is a list
+   of things to hand the card one at a time, and the shadow pass hands it the
+   whole list again. */
+#perf{position:absolute;top:14px;right:14px;padding:7px 11px;
+  background:rgba(20,16,14,.74);border:1px solid rgba(235,224,203,.13);
+  font:11px/1.6 var(--type);letter-spacing:.09em;color:var(--brass);
+  white-space:pre;text-align:right;pointer-events:none}
 
 #gunhud{position:absolute;right:18px;bottom:18px;display:flex;align-items:flex-end;gap:16px}
 #cyl{position:relative;width:92px;height:92px;border-radius:50%;border:1px solid rgba(185,154,110,.35);
@@ -128,6 +135,12 @@ body.cursoraim.playing #app{cursor:none}
   background:radial-gradient(ellipse 62% 56% at 50% 50%,
     rgba(0,0,0,0) 45%, rgba(16,11,8,.34) 78%, rgba(10,7,5,.62) 100%)}
 #scope.on{display:block}
+/* No reticle. The Springfield is aimed the way it was aimed in 1873: line the
+   top of the front blade up in the rear notch and put it on the man. The rig is
+   dropped so both sights land on the middle of the screen, which is where the
+   shot goes - so the sight picture is not decoration, it is the aim. All that
+   is left of the overlay is the vignette closing in when you settle down on
+   them. */
 #scope i{display:none}
 #prompt{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);font-size:13px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--brass);background:rgba(20,16,14,.7);padding:6px 14px;
@@ -211,6 +224,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     <div class="panel" id="compass"><div id="strip"></div><div id="needle"></div></div>
     <div class="panel" id="notches"><span class="lbl">Notches cut</span><div id="tally"></div></div>
     <div class="panel" id="grit"><span class="lbl">Grit</span><div id="bars"></div><div id="state"></div></div>
+    <div id="perf" hidden></div>
     <div id="gunhud">
       <div id="ammoTxt"><div class="val"><span id="ammoN">6</span><span id="ammoOf"> / 6</span></div><span class="lbl" id="cal">.45 Colt</span>
         <div id="guns" hidden><b id="gunColt">1 &middot; Colt</b><b id="gunRifle">2 &middot; Sharps</b></div>
@@ -367,19 +381,24 @@ var AU={
     this.ok=true;
   },
   resume:function(){ if(this.ok&&this.ctx.state==='suspended') this.ctx.resume(); },
-  burst:function(vol,cut,dur,q){
+  /* `when` schedules the sound at a given point on the audio clock instead of
+     the instant the call is made. Anything with a rhythm to it needs that: the
+     frame the call comes from lands wherever the frame happens to land, and a
+     hoofbeat placed on frame times rather than on the beat it was due comes out
+     limping. Never behind the clock, or the ramps start in the past. */
+  burst:function(vol,cut,dur,q,when){
     var c=this.ctx,s=c.createBufferSource(); s.buffer=this.noise;
     s.playbackRate.value=rr(0.85,1.15);
     var f=c.createBiquadFilter(); f.type='lowpass'; f.Q.value=q||1;
-    var t=c.currentTime;
+    var t=Math.max(c.currentTime,when||0);
     f.frequency.setValueAtTime(cut,t); f.frequency.exponentialRampToValueAtTime(Math.max(120,cut*0.14),t+dur);
     var g=c.createGain();
     g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0005,t+dur);
     s.connect(f); f.connect(g); g.connect(this.master); s.start(t); s.stop(t+dur+0.05);
   },
-  thump:function(vol,f0,f1,dur){
+  thump:function(vol,f0,f1,dur,when){
     var c=this.ctx,o=c.createOscillator(); o.type='sine';
-    var t=c.currentTime;
+    var t=Math.max(c.currentTime,when||0);
     o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f1,t+dur);
     var g=c.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0005,t+dur);
     o.connect(g); g.connect(this.master); o.start(t); o.stop(t+dur+0.05);
@@ -420,11 +439,12 @@ var AU={
   },
   thud:function(){ if(!this.ok)return; this.burst(0.4,700,0.16,1.2); this.thump(0.3,90,45,0.16); },
   hurt:function(){ if(!this.ok)return; this.thump(0.42,220,60,0.35); this.burst(0.25,600,0.25,1); },
-  clop:function(v){
+  clop:function(v,when){
     if(!this.ok)return;
-    this.burst(0.16*v,2000,0.055,2.2);
-    this.thump(0.13*v,150,62,0.075);
+    this.burst(0.16*v,2000,0.055,2.2,when);
+    this.thump(0.13*v,150,62,0.075,when);
   },
+  now:function(){ return this.ok?this.ctx.currentTime:0; },
   whinny:function(){
     if(!this.ok)return;
     var c=this.ctx,t=c.currentTime;
@@ -789,10 +809,25 @@ var ENV=envTex();
    ============================================================ */
 var canvas=$('view');
 var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.75));
+/* Every setting on this page costs the same on every frame forever, so the ones
+   that scale the whole frame are the ones worth being mean about. Pixel ratio is
+   the meanest of the lot: it is quadratic. A 1080p laptop panel reporting DPR 1.5
+   was being handed 2880x1620 to fill, with MSAA on top, for a picture that then
+   has a vignette and a film grain laid over it. 1.25 is as far as this scene can
+   tell the difference. */
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.25));
 renderer.setSize(window.innerWidth,window.innerHeight,false);
 renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.shadowMap.type=THREE.PCFShadowMap;
+/* The shadow map is rebuilt every frame, which means every caster in the world
+   is drawn a second time. That was worth throttling when the town was two and a
+   half thousand casters; now that the buildings are flattened it is about five
+   hundred, and rebuilding costs less than the throttle did. The throttle bought
+   an average frame that was cheaper and a frame time that was not: four light
+   frames and one heavy one, fifteen times a second. You cannot feel an average.
+   You can feel that, and it is worst in the mouse, because turning is the one
+   thing where the picture has to keep time with your hand. */
+renderer.info.autoReset=false;          // the loop resets it, so the count covers both passes
 renderer.outputEncoding=THREE.sRGBEncoding;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.06;
@@ -824,12 +859,17 @@ scene.add(new THREE.HemisphereLight(0xE9C08C,0x6B4E33,0.62));
 var sun=new THREE.DirectionalLight(0xFFD8A4,1.15);
 sun.position.set(74,58,-46);
 sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);
+sun.shadow.mapSize.set(1024,1024);
 sun.shadow.camera.near=1; sun.shadow.camera.far=260;
 var SD=58;
 sun.shadow.camera.left=-SD; sun.shadow.camera.right=SD;
 sun.shadow.camera.top=SD; sun.shadow.camera.bottom=-SD;
 sun.shadow.bias=-0.0009;
+/* Halving the map doubled the width of a shadow texel, which is what turns into
+   acne on a surface the sun is raking across. normalBias walks the lookup off
+   along the surface normal by a bit more than a texel, which fixes it there
+   rather than by pushing every shadow in the world further from its caster. */
+sun.shadow.normalBias=0.02;
 scene.add(sun); scene.add(sun.target);
 var backLight=new THREE.DirectionalLight(0x8FA6C4,0.22); backLight.position.set(-50,30,60); scene.add(backLight);
 
@@ -997,6 +1037,104 @@ function box(w,h,d,mat,x,y,z,parent){
   (parent||world).add(m); return m;
 }
 
+/* --- baking a cluster of parts down into one mesh ---
+   A tumbleweed is fifty-six twigs and a saguaro is a dozen limbs, and authoring
+   them that way is the only sane way to write them: each part gets its own
+   position, its own rotation, its own taper. The trouble is that the card does
+   not care how the thing was written. Every mesh is a draw call, and the shadow
+   pass draws it again, so eight tumbleweeds alone were nine hundred draws a
+   frame for something the size of a hat.
+
+   Nothing in one of these clusters ever moves relative to the rest of it, so
+   once it is built the parts can be flattened into a single buffer - the local
+   matrix is baked into the vertices and the whole snarl becomes one draw. The
+   picture is identical; the same triangles arrive with the same normals under
+   the same material.
+
+   Baking per cluster and not across the whole map is deliberate. One merged
+   mesh for all eighty-six cacti would be a single draw, but it would also be a
+   single bounding sphere the size of the county, and the moment any of it is on
+   screen all of it is drawn. Per cluster, frustum culling still throws away
+   everything behind you. */
+var _bv=new THREE.Vector3(), _bn=new THREE.Matrix3();
+function mergeParts(parts,mat){
+  var i,j,vc=0,ic=0,g;
+  for(i=0;i<parts.length;i++){
+    g=parts[i].geometry;
+    vc+=g.attributes.position.count;
+    ic+=g.index?g.index.count:g.attributes.position.count;
+  }
+  var pos=new Float32Array(vc*3), nor=new Float32Array(vc*3), uv=new Float32Array(vc*2);
+  var idx=vc>65535?new Uint32Array(ic):new Uint16Array(ic), vo=0, io=0;
+  for(i=0;i<parts.length;i++){
+    var m=parts[i]; m.updateMatrix();
+    g=m.geometry;
+    var p=g.attributes.position, n=g.attributes.normal, u=g.attributes.uv, c=p.count;
+    _bn.getNormalMatrix(m.matrix);
+    for(j=0;j<c;j++){
+      _bv.set(p.getX(j),p.getY(j),p.getZ(j)).applyMatrix4(m.matrix);
+      pos[(vo+j)*3]=_bv.x; pos[(vo+j)*3+1]=_bv.y; pos[(vo+j)*3+2]=_bv.z;
+      if(n){
+        // A normal is not a point: under a squashed prickly-pear pad it has to
+        // go through the inverse transpose or the lighting comes out wrong.
+        _bv.set(n.getX(j),n.getY(j),n.getZ(j)).applyMatrix3(_bn).normalize();
+        nor[(vo+j)*3]=_bv.x; nor[(vo+j)*3+1]=_bv.y; nor[(vo+j)*3+2]=_bv.z;
+      }
+      if(u){ uv[(vo+j)*2]=u.getX(j); uv[(vo+j)*2+1]=u.getY(j); }
+    }
+    if(g.index){ for(j=0;j<g.index.count;j++) idx[io++]=vo+g.index.getX(j); }
+    else       { for(j=0;j<c;j++) idx[io++]=vo+j; }
+    vo+=c;
+    g.dispose();                        // the parts are about to be thrown away
+  }
+  var out=new THREE.BufferGeometry();
+  out.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  out.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+  out.setAttribute('uv',new THREE.BufferAttribute(uv,2));
+  out.setIndex(new THREE.BufferAttribute(idx,1));
+  return new THREE.Mesh(out,mat);
+}
+
+/* Flatten a group's plain static meshes in place, one merged mesh per material.
+   Pass `from` to leave the first n children alone - a building wants its shell
+   left as it is and only the fittings baked.
+
+   Anything that is not a plain single-material mesh is put back untouched: the
+   barkeep working his rag is a Group inside the saloon and the door leaves swing
+   on their own pivots, and folding either of those into the floor would nail
+   them to it. Baking is only ever safe for what never moves.
+
+   Merged meshes inherit how their parts were lit, so callers that have already
+   set castShadow on the parts do not have to set it again. */
+function bake(g,from){
+  var keys=[],buckets=[],out=[],keep=[],i,k,m,key;
+  from=from||0;
+  for(i=from;i<g.children.length;i++){
+    m=g.children[i];
+    if(!m.isMesh||m.isInstancedMesh||m.isSkinnedMesh||Array.isArray(m.material)
+       ||!m.geometry||!m.geometry.attributes||!m.geometry.attributes.position){
+      keep.push(m); continue;
+    }
+    /* Bucketed by how a part is lit as well as by what it is made of. A wall and
+       the dresser standing against it are cut from the same planks, but the wall
+       throws a shadow across the street and the dresser is furniture in a closed
+       room - and one merged mesh can only do one of those. */
+    key=m.material.uuid+'|'+(m.castShadow?1:0)+(m.receiveShadow?1:0);
+    k=keys.indexOf(key);
+    if(k<0){ k=keys.length; keys.push(key); buckets.push([]); }
+    buckets[k].push(m);
+  }
+  for(i=g.children.length-1;i>=from;i--) g.remove(g.children[i]);
+  for(i=0;i<keep.length;i++) g.add(keep[i]);
+  for(k=0;k<buckets.length;k++){
+    var first=buckets[k][0];
+    m=mergeParts(buckets[k],first.material);
+    m.castShadow=first.castShadow; m.receiveShadow=first.receiveShadow;
+    g.add(m); out.push(m);
+  }
+  return out;
+}
+
 /* A structure is authored in local space with its front face at -Z, then dropped
    into the world at a right-angle rotation. Every wall registers its own
    footprint, so doorways are genuinely open and you walk through them. */
@@ -1022,6 +1160,31 @@ function Structure(x,z,face){
 }
 
 var WALLT=0.22, DOORW=2.2, DOORH=2.4, SILL=1.12, HEAD=2.28;
+
+/* Where the rifleman lies across the front of the saloon he lies on.
+
+   He used to kneel, and a kneeling man is head and shoulders over the false
+   fronts along this row - they run from six and a half to seven and a half
+   metres and his rifle was at seven-eleven. Lying down puts him under all of
+   them, and the ones in his way are not his own but his neighbours', stood in a
+   line between him and the length of the street. Measured, a prone man on the
+   old roof could see one per cent of it.
+
+   So the Occidental goes up a storey. It is the main saloon on the street and a
+   two-storey one is no odd thing, it gives the stair something to climb, and it
+   is the only thing that puts a man lying on his belly above the roofline of
+   the row rather than behind it. */
+var PERCH_DX=-3.2, PERCH_GAP=3.0;
+
+/* The second half of it: the parapet in front of him has to go, not be lowered.
+   A man lying down who wants to shoot at the street six metres below has to put
+   the barrel over at a steep angle, and tilting a rifle down about a pivot that
+   is a hand's width off the deck swings the muzzle down with it - measured, the
+   end of the barrel dips to within two centimetres of the roof. There is no
+   parapet low enough to shoot over from there. So he lies at the edge with the
+   muzzle out past the boards and the front left open where he lies, which is
+   how a man on a roof actually does it. It is also why the roof went up a
+   storey: from up here he is over the row instead of behind it. */
 var interiors=[];                       // rooms you can stand in, in world space
 function insideBuilding(x,z){
   for(var i=0;i<interiors.length;i++){
@@ -1154,7 +1317,7 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
     S.part(1.5,1.2,0.12,MAT.glass, w/2-1.5,1.75,-d/2-0.07,false);
   }
 
-  var fh=h+(lowFront?0.95:rr(1.5,2.3)), i, deck=0;
+  var fh=h+(lowFront?0.30:rr(1.5,2.3)), i, deck=0;   // lowFront: the perch roof, kept clear
   S.part(0.30,h,0.34,shell,-w/2-0.12,h/2,-d/2-0.14,false);           // corner pilasters
   S.part(0.30,h,0.34,shell, w/2+0.12,h/2,-d/2-0.14,false);
   S.part(w+0.34,0.20,0.42,MAT.wood1,0,h+0.02,-d/2-0.16,false);       // cornice
@@ -1200,6 +1363,10 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
       S.part(0.44,0.36,0.40,shell,-w/2-0.10,qy,-d/2-0.16,false);
       S.part(0.44,0.36,0.40,shell, w/2+0.10,qy,-d/2-0.16,false);
     }
+  }else if(lowFront){
+    var gL=PERCH_DX-PERCH_GAP/2, gR=PERCH_DX+PERCH_GAP/2, FW=(w+0.34)/2;
+    S.part(gL+FW,fh-h,0.36,shell,(-FW+gL)/2,(h+fh)/2,-d/2-0.14,false);
+    S.part(FW-gR,fh-h,0.36,shell,(gR+FW)/2,(h+fh)/2,-d/2-0.14,false);
   }else{
     S.part(w+0.34,fh-h,0.36,shell,0,(h+fh)/2,-d/2-0.14,false);       // plain false front
   }
@@ -1248,7 +1415,12 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
      half a metre. Leaving a real gap means nothing has to be excused. */
   if(open){
     var fbw=(w+0.34-DOORW)/2;
-    S.blocker(-(DOORW+fbw)/2,-d/2-0.14,fbw,0.36,fh);
+    if(lowFront){                        // the same strip, with his firing step out of it
+      var qL=-(w+0.34)/2, qR=-DOORW/2;
+      var hL2=PERCH_DX-PERCH_GAP/2, hR2=PERCH_DX+PERCH_GAP/2;
+      S.blocker((qL+hL2)/2,-d/2-0.14,hL2-qL,0.36,fh);
+      S.blocker((hR2+qR)/2,-d/2-0.14,qR-hR2,0.36,fh);
+    }else S.blocker(-(DOORW+fbw)/2,-d/2-0.14,fbw,0.36,fh);
     S.blocker( (DOORW+fbw)/2,-d/2-0.14,fbw,0.36,fh);
   }else S.blocker(0,-d/2-0.14,w+0.34,0.36,fh);
 
@@ -1261,6 +1433,25 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
   var sign=new THREE.Mesh(new THREE.PlaneGeometry(sw,sw*0.25),
     new THREE.MeshLambertMaterial({map:signTex(name,'#4b3421','#E8DCC0')}));
   sign.position.set(0,h+0.74,-d/2-0.34); sign.rotation.y=Math.PI; g.add(sign);
+
+  /* The building is finished, so flatten it. This is the last thing done to it
+     and nothing outside holds a mesh from it, so there is nothing left to break:
+     buildTown throws the returned S away, and the only arrays that keep hold of
+     anything are hitables - fixed up below - and folk and doors, both of which
+     keep Groups that bake steps straight over.
+
+     A fitted saloon was close to three hundred draws and its shell alone was a
+     hundred casters, and every one of those was handed over twice a frame, once
+     for the picture and once for the shadow map. Flattened it is a handful.
+
+     Walls were registered one at a time as things you can shoot. Those parts are
+     gone now, so any hitable that baking orphaned has to come out of the list -
+     left in, it would point the raycaster at a mesh that is no longer in the
+     scene, carrying a world matrix that will never be updated again. Testing for
+     a null parent finds exactly those and leaves the door leaves alone. */
+  var baked=bake(g,0), q;
+  for(q=hitables.length-1;q>=0;q--) if(!hitables[q].parent) hitables.splice(q,1);
+  for(q=0;q<baked.length;q++) hitables.push(baked[q]);
   return S;
 }
 
@@ -1562,7 +1753,14 @@ function hangDoors(S,face,x,z,d,kind){
       box(sl*0.62,0.05,0.055,PLANKDOOR,scx,1.70,-0.035,p);
       box(0.055,0.055,0.11,MAT.brass,dir*(sl-0.16),1.06,-0.06,p);
     }
-    p.traverse(function(o){ if(o.isMesh){ o.castShadow=false; hitables.push(o); } });
+    /* A leaf swings, but nothing on a leaf moves relative to the leaf - the
+       rails, the panel, the pane and the knob are one board with hinges. So the
+       leaf group stays, and is still what the door animation turns; only the
+       boards inside it are flattened. Fifteen doorways were four hundred and
+       forty draws stood in the street. */
+    p.traverse(function(o){ if(o.isMesh) o.castShadow=false; });
+    var pb=bake(p);
+    for(var q=0;q<pb.length;q++) hitables.push(pb[q]);
   }
   leaf(hL,1); leaf(hR,-1);
   var c=Math.cos(face), sn=Math.sin(face);
@@ -1583,6 +1781,7 @@ function hangDoors(S,face,x,z,d,kind){
 function dressInterior(S,kind,w,d,h){
   var g=S.g;
   S.noShadow=true;                       // fittings skip the shadow pass, walls do not
+  var fitted0=g.children.length;         // everything added past here is a fitting
   function it(lw,lh,ld,mat,lx,ly,lz,solid){ return S.part(lw,lh,ld,mat,lx,ly,lz,solid===true); }
   function cyl(r1,r2,hh,seg,mat,lx,ly,lz){
     var m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,hh,seg),mat);
@@ -1730,6 +1929,13 @@ function dressInterior(S,kind,w,d,h){
     mapp.position.set(0,2.2,back+0.55); mapp.rotation.y=Math.PI; g.add(mapp);
     for(i=0;i<3;i++) it(2.0,1.5,0.5,MAT.inside,-w/2+1.3,0.75,-2.0+i*1.6,true);
   }
+  /* noShadow only ever reached the fittings built through S.part. The bottles,
+     the chandeliers, the faro layout, the pews - everything laid in with cyl or
+     a bare mesh - kept casting, and a room full of furniture is a lot of casters
+     for shadows thrown inside a closed building where nobody can see them. */
+  for(var ns=fitted0;ns<g.children.length;ns++)
+    g.children[ns].traverse(function(o){ if(o.isMesh) o.castShadow=false; });
+
   S.noShadow=false;
 }
 
@@ -1750,10 +1956,16 @@ var TOWN_N=[
 var PERCH=null;
 function saloonRoof(bx,bz,w,d,h){
   var rY=h+0.09, i;
-  PERCH={x:bx-1.6,z:bz-d/2+1.25,y:rY,yaw:0};
+  /* Lined up on the notch, and far enough back that his boots are on the deck
+     and only the barrel is through the gap. */
+  PERCH={x:bx+PERCH_DX,z:bz-d/2+0.30,y:rY,yaw:0};
   platforms.push({x0:bx-w/2-0.2,x1:bx+w/2+0.2,z0:bz-d/2-0.1,z1:bz+d/2+0.9,y:rY});
 
-  var N=14, run=0.48, rise=rY/N;
+  /* Tread count follows the height rather than being fixed at fourteen: the
+     roof went up two metres and fourteen steps to it would be a rise of over
+     half a metre a tread, which is higher than the step-up allowance will
+     carry you - the stair would simply stop working. */
+  var run=0.48, N=Math.max(12,Math.round(rY/0.41)), rise=rY/N;
   var sz=bz+d/2+1.55;                      // centre line of the flight
   var x0=bx-3.6, span=N*run;
   var len=Math.sqrt(span*span+rY*rY), ang=Math.atan2(rY,span);
@@ -1796,7 +2008,7 @@ stage('raising the town',291,function buildTown(){
   for(i=0;i<TOWN_S.length;i++){
     e=TOWN_S[i];
     var bd=rr(9.5,11), bh=(e[3]==='two')?7.6:rr(4.7,5.5), bx=xs+e[2]/2, bz=14+bd/2;
-    if(i===0) bh=5.6;
+    if(i===0) bh=7.6;                    // the perch: see PERCH_DX
     building(bx,bz,0,e[2],bd,bh,e[0],e[1],i===0,e[3],e[4]);
     if(i===0) saloonRoof(bx,bz,e[2],bd,bh);
     xs+=e[2]+rr(1.3,2.6);
@@ -2043,15 +2255,15 @@ function cactus(x,z,kind){
   if(kind===0||kind===1){                                   // saguaro
     var hgt=rr(2.2,4.2);
     var t=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.34,hgt,10),m);
-    t.position.y=hgt/2; t.castShadow=true; g.add(t); hitables.push(t);
+    t.position.y=hgt/2; g.add(t);
     var cap=new THREE.Mesh(new THREE.SphereGeometry(0.28,10,6),m);
     cap.position.y=hgt; cap.scale.y=0.7; g.add(cap);
     for(i=0;i<ri(1,3);i++){
       var side=(i%2?1:-1), ay=rr(hgt*0.35,hgt*0.66), al=rr(0.55,1.0), ul=rr(0.7,1.5);
       var a=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.19,al,8),m);
-      a.position.set(side*al*0.45,ay,0); a.rotation.z=-side*Math.PI/2.4; a.castShadow=true; g.add(a);
+      a.position.set(side*al*0.45,ay,0); a.rotation.z=-side*Math.PI/2.4; g.add(a);
       var up=new THREE.Mesh(new THREE.CylinderGeometry(0.155,0.175,ul,8),m);
-      up.position.set(side*(al*0.82),ay+ul/2-0.06,0); up.castShadow=true; g.add(up);
+      up.position.set(side*(al*0.82),ay+ul/2-0.06,0); g.add(up);
       var uc=new THREE.Mesh(new THREE.SphereGeometry(0.16,8,6),m);
       uc.position.set(side*(al*0.82),ay+ul-0.06,0); uc.scale.y=0.7; g.add(uc);
     }
@@ -2061,15 +2273,14 @@ function cactus(x,z,kind){
     for(i=0;i<pads;i++){
       var pd=new THREE.Mesh(new THREE.SphereGeometry(rr(0.26,0.40),9,7),m);
       pd.position.set(px,py,rr(-0.12,0.12));
-      pd.scale.set(1,1.25,0.30); pd.rotation.z=pr; pd.castShadow=true; g.add(pd);
-      hitables.push(pd);
+      pd.scale.set(1,1.25,0.30); pd.rotation.z=pr; g.add(pd);
       pr=rr(-0.7,0.7); px+=Math.sin(pr)*0.34; py+=rr(0.26,0.40);
     }
   }else if(kind===3){                                       // barrel cactus, ribbed
     blockR=0.55;
     var br=rr(0.28,0.46), bh=rr(0.42,0.80);
     var bd=new THREE.Mesh(new THREE.CylinderGeometry(br*0.86,br*0.78,bh,11),m);
-    bd.position.y=bh/2; bd.castShadow=true; g.add(bd); hitables.push(bd);
+    bd.position.y=bh/2; g.add(bd);
     var bc=new THREE.Mesh(new THREE.SphereGeometry(br*0.86,11,6),m);
     bc.position.y=bh; bc.scale.y=0.5; g.add(bc);
     for(i=0;i<9;i++){
@@ -2086,7 +2297,7 @@ function cactus(x,z,kind){
         var cane=new THREE.Mesh(new THREE.CylinderGeometry(0.030,0.055,wl,6),m);
         cane.position.set(Math.cos(wa)*wl*0.16,wl/2,Math.sin(wa)*wl*0.16);
         cane.rotation.z=-Math.cos(wa)*0.30; cane.rotation.x=Math.sin(wa)*0.30;
-        cane.castShadow=true; g.add(cane);
+        g.add(cane);
       }
     }else{
       var st=new THREE.Mesh(new THREE.CylinderGeometry(0.10,0.16,rr(0.5,1.1),8),MAT.wood1);
@@ -2096,10 +2307,16 @@ function cactus(x,z,kind){
         var bl=new THREE.Mesh(new THREE.ConeGeometry(0.055,yl,4),m);
         bl.position.set(Math.cos(ya)*0.22,0.62+yl*0.36,Math.sin(ya)*0.22);
         bl.rotation.z=-Math.cos(ya)*0.85; bl.rotation.x=Math.sin(ya)*0.85;
-        bl.castShadow=true; g.add(bl);
+        g.add(bl);
       }
     }
   }
+  /* Nine or ten limbs and ribs go in; one mesh comes out - two for a yucca,
+     whose stem is wood rather than cactus. What you can shoot is now the whole
+     plant rather than the trunk alone, which is how it should have read in the
+     first place: a bullet into the top of a saguaro used to go straight through. */
+  var baked=bake(g);
+  for(i=0;i<baked.length;i++){ baked[i].castShadow=true; hitables.push(baked[i]); }
   addBlocker(x,z,blockR,blockR,2.5);
 }
 function rock(x,z,s,mat,noBlock){
@@ -2251,7 +2468,8 @@ stage('weeds along the street',24,function scatterWeeds(){
       wb.rotation.set(rr(0,TAU),rr(0,TAU),rr(0,TAU));
       G.add(wb);
     }
-    G.traverse(function(o){ if(o.isMesh) o.castShadow=true; });
+    var tb=bake(G);             // fifty-six twigs down to two, and they are all rolling
+    for(i=0;i<tb.length;i++) tb[i].castShadow=true;
     return {g:G,r:R};
   }
   for(var i=0;i<8;i++){
@@ -2265,8 +2483,17 @@ stage('weeds along the street',24,function scatterWeeds(){
 /* ============================================================
    8. line of sight against the town footprints
    ============================================================ */
-function losClear(ax,az,bx,bz){
-  var dx=bx-ax, dz=bz-az;
+/* Pass ay and by - the height of each end - and the footprints are treated as
+   the boxes they actually are rather than as walls of infinite height. Without
+   them this is the old flat test, where anything whose footprint the line
+   crosses blocks it outright.
+
+   The heights matter for exactly one shooter, but he is the one who hurts: the
+   rifleman is on a roof, and from up there he genuinely can see over a water
+   trough and a boardwalk rail. Run flat, the test would have him blocked by the
+   saloon he is standing on. */
+function losClear(ax,az,bx,bz,ay,by){
+  var dx=bx-ax, dz=bz-az, tall=(ay!==undefined);
   for(var i=0;i<blockers.length;i++){
     var b=blockers[i], t0=0, t1=1, ok=true;
     for(var a=0;a<2;a++){
@@ -2277,7 +2504,16 @@ function losClear(ax,az,bx,bz){
       if(ta>t0)t0=ta; if(tb<t1)t1=tb;
       if(t0>t1){ok=false;break;}
     }
-    if(ok) return false;
+    if(!ok) continue;
+    if(!tall) return false;
+    /* The line crosses this footprint between t0 and t1. Height runs linearly
+       along it, so the lowest it gets over that stretch is at one end or the
+       other - if even that clears the top of the box, the shot passes over it,
+       and if it does not, the shot is in the box. That second case is what
+       stops him firing through the building you are stood behind: the line goes
+       in over the near wall and is still underground at the far one. */
+    var e0=ay+(by-ay)*t0, e1=ay+(by-ay)*t1;
+    if(Math.min(e0,e1)<b.top) return false;
   }
   return true;
 }
@@ -2618,7 +2854,8 @@ function Outlaw(x,z,name){
   var e={
     g:g,name:name,hp:100,dead:false,state:'walk',
     x:x,z:z,yaw:0,phase:rr(0,TAU),fireCd:rr(0.8,2.6),strafe:rr(-1,1)>0?1:-1,strafeCd:rr(1,3),
-    legL:legL,legR:legR,armL:armL,armR:armR,torso:torso,head:head,fallT:0,hitT:0,speed:rr(2.6,3.5)
+    legL:legL,legR:legR,armL:armL,armR:armR,torso:torso,head:head,fallT:0,hitT:0,speed:rr(2.6,3.5),
+    present:0,kick:0                   // how far the pistol is up, and the recoil off the last shot
   };
   torso.userData.owner=e; head.userData.owner=e;
   g.position.set(x,terrainH(x,z),z);
@@ -2658,35 +2895,104 @@ function Rifleman(x,y,z,yaw,name){
   var hatm=new THREE.MeshLambertMaterial({color:0x2A231B});
   function bx(w,h,d,m,px,py,pz,p){var q=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);q.position.set(px,py,pz);q.castShadow=true;(p||g).add(q);return q;}
 
-  bx(0.22,0.62,0.24,shirt,-0.15,0.31,0);                      // braced on one knee
-  var kneel=bx(0.22,0.24,0.62,shirt,0.16,0.12,0.14);
-  bx(0.20,0.46,0.22,shirt,0.16,0.35,-0.12);
-  bx(0.60,0.50,0.38,coat,0,0.80,0);
-  var torso=bx(0.56,0.58,0.34,coat,0,1.26,0);
-  torso.userData={owner:null,part:'body'};
-  var armL=bx(0.14,0.52,0.16,coat,-0.32,1.44,0.04);
-  armL.geometry.translate(0,-0.26,0); armL.position.y=1.50; armL.rotation.x=-1.25;
-  var armR=bx(0.14,0.52,0.16,coat, 0.32,1.44,0.04);
-  armR.geometry.translate(0,-0.26,0); armR.position.y=1.50; armR.rotation.x=-1.05;
-  var head=new THREE.Mesh(new THREE.SphereGeometry(0.15,10,8),skin);
-  head.position.set(0,1.70,0.02); head.castShadow=true; g.add(head);
-  head.userData={owner:null,part:'head'};
-  var crown=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.17,0.16,10),hatm);
-  crown.position.y=1.84; crown.castShadow=true; g.add(crown);
-  var brim=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.026,12),hatm);
-  brim.position.y=1.76; brim.castShadow=true; g.add(brim);
+  /* Prone, stretched out down the roof with the rifle through the notch in the
+     false front. He is built along his own +z, head and rifle at the front and
+     boots trailing back, and the tracking turns the whole of him.
 
-  // the same Springfield you will be taking off him
-  var rifle=new THREE.Group(); rifle.position.set(0.05,1.40,0.30); g.add(rifle);
-  springfield(rifle,false);
+     Everything above the sill is everything you can hit: the crown of the hat,
+     the head, and the top half of his back. That is the trade the notch makes -
+     he gets a lane down the street and you get the same lane back at him. */
+  /* The shape of a man shooting lying down, which is a long low wedge: boots at
+     the back, the body tapering up onto the elbows, and the head tucked in
+     behind the breech. Two things carry it. One leg runs straight back and the
+     other has the knee cocked out to the side, which rolls him off his belly
+     and is the whole difference between a prone man and a plank; and the hat is
+     pushed back off his brow instead of sitting level, because a flat brim seen
+     from the street below is a dinner plate with a man hidden under it - which
+     is exactly what it looked like. */
+  /* Limbs are placed by their ends, not by angles. For a man lying down the
+     joints are the part you can actually reason about - elbow planted there,
+     hand on the forestock there - and working back from that to an Euler angle
+     per limb is how the arms ended up stuck out sideways like wings. */
+  function bone(ax,ay,az,bX,bY,bZ,th,m){
+    var dx=bX-ax, dy=bY-ay, dz=bZ-az;
+    var q=new THREE.Mesh(new THREE.BoxGeometry(th,th,Math.sqrt(dx*dx+dy*dy+dz*dz)),m);
+    q.position.set((ax+bX)/2,(ay+bY)/2,(az+bZ)/2);
+    q.lookAt(bX,bY,bZ);                                       // the box runs down its own +z
+    q.castShadow=true; g.add(q); return q;
+  }
+
+  bone(-0.14,0.09,-0.55,-0.15,0.08,-1.30,0.18,shirt);         // left leg, straight out behind
+  bx(0.18,0.13,0.24,shirt,-0.15,0.07,-1.42);                  // sole of the boot
+  /* The knee goes out and the shin comes back in behind it. Run the shin out to
+     the side as well and he is not cocking a knee, he is frog-legged. */
+  bone(0.14,0.09,-0.52,0.44,0.09,-0.86,0.18,shirt);           // right thigh, knee cocked out
+  bone(0.44,0.09,-0.86,0.33,0.08,-1.32,0.16,shirt);           // shin, tucked back in
+  bx(0.16,0.13,0.22,shirt,0.31,0.07,-1.42);
+
+  bx(0.46,0.21,0.55,coat,0,0.13,-0.34);                       // hips, coat tail rucked over them
+  var torso=bx(0.50,0.26,0.66,coat,0,0.21,0.10);              // down on his chest
+  torso.userData={owner:null,part:'body'};
+  bx(0.52,0.17,0.22,coat,0,0.28,0.34);                        // shoulders
+
+  /* Elbows planted wide on the deck with the forearms running in to the rifle -
+     this is the shape that says prone from the street, and it is what was
+     missing. The left hand is out under the forestock, the right is back on the
+     grip. */
+  bone(-0.24,0.28,0.26,-0.30,0.07,0.52,0.12,coat);            // left upper arm, down to the deck
+  var armL=bone(-0.30,0.07,0.52,0.06,0.20,1.10,0.11,coat);    // forearm, out to the forestock
+  bone(0.26,0.28,0.26,0.32,0.07,0.46,0.12,coat);              // right upper arm
+  var armR=bone(0.32,0.07,0.46,0.17,0.24,0.72,0.11,coat);     // forearm, back to the grip
+
+  var head=new THREE.Mesh(new THREE.SphereGeometry(0.145,10,8),skin);
+  head.position.set(-0.01,0.35,0.52); head.castShadow=true; g.add(head);
+  head.userData={owner:null,part:'head'};
+  /* Tipped back as one piece, so the brim clears his eyeline instead of lying
+     across it - and so there is a face under it from where you are standing. */
+  var hat=new THREE.Group(); hat.position.set(-0.01,0.39,0.45); hat.rotation.x=-0.60; g.add(hat);
+  var crown=new THREE.Mesh(new THREE.CylinderGeometry(0.142,0.160,0.15,10),hatm);
+  crown.position.y=0.085; crown.castShadow=true; hat.add(crown);
+  var brim=new THREE.Mesh(new THREE.CylinderGeometry(0.265,0.265,0.026,12),hatm);
+  brim.position.y=0.012; brim.castShadow=true; hat.add(brim);
+
+  /* The same Springfield you will be taking off him. It is modelled lying down
+     its own -z, muzzle forward of the breech, and he is built kneeling towards
+     +z - so dropped in as it comes it lies backwards along him, the barrel
+     running back through his chest and the butt out where the muzzle should be.
+     The half turn is what puts it to his shoulder.
+
+     `rifle` stays the elevation pivot, unturned, so the tracking code above can
+     go on tilting it about a plain x axis; only the woodwork inside is turned
+     round. */
+  /* The pivot goes at the butt, where his shoulder is, not under the middle of
+     the rifle. Tilting a rifle about its middle swings the butt up and back as
+     the muzzle goes down, and since he has to depress it hard to reach the
+     street from up here, the butt was coming back through his head. Held at the
+     shoulder the butt stays put and only the barrel moves, which is both what a
+     shoulder is for and the difference between aiming and being speared.
+
+     The model runs from a buttplate at +0.51 to a muzzle at -0.84, so turning it
+     about and pushing it forward 0.51 puts the butt exactly on the pivot. */
+  var rifle=new THREE.Group(); rifle.position.set(0.13,0.30,0.30); g.add(rifle);
+  var stock=new THREE.Group(); stock.rotation.y=Math.PI; stock.position.z=0.51; rifle.add(stock);
+  springfield(stock,false);
   var glint=new THREE.Mesh(new THREE.SphereGeometry(0.026,8,6),
     new THREE.MeshBasicMaterial({color:0xFFF0C0,transparent:true,opacity:0}));
-  glint.position.set(0,0.020,-0.30); rifle.add(glint);        // sun off the barrel band
+  /* Out along the barrel, past the front of the building - the tell has to be
+     on the part of the rifle that is through the gap, or it flashes behind the
+     planking where nobody can see it. */
+  glint.position.set(0,0.020,-0.58); stock.add(glint);
+  /* The end of the barrel, as a thing that can be asked where it is. His shot
+     leaves here and his line of sight is taken from here, so the notch he is
+     firing through cannot be in the way of a shot that starts beyond it - which
+     is what happens if you measure the sight line from the middle of a man
+     lying a metre back from the wall. */
+  var muz=new THREE.Object3D(); muz.position.set(0,0.016,-0.85); stock.add(muz);
 
   g.position.set(x,y,z); g.rotation.y=yaw; world.add(g);
   var e={
     g:g,name:name,kind:'sniper',hp:100,dead:false,state:'aim',
-    x:x,y:y,z:z,yaw:yaw,rifle:rifle,glint:glint,glintM:glint.material,
+    x:x,y:y,z:z,yaw:yaw,rifle:rifle,muzzle:muz,glint:glint,glintM:glint.material,
     fireCd:4.2,charge:0,phase:0,strafe:1,strafeCd:9,hitT:0,fallT:0,speed:0,
     legL:{hip:{rotation:{x:0}},knee:{rotation:{x:0}}},
     legR:{hip:{rotation:{x:0}},knee:{rotation:{x:0}}},armL:armL,armR:armR,torso:torso,head:head
@@ -2859,7 +3165,7 @@ var ui={
   tally:$('tally'),bars:$('bars'),state:$('state'),ammoN:$('ammoN'),cyl:$('cyl'),
   feed:$('feed'),prompt:$('prompt'),cross:$('cross'),mark:$('mark'),hurt:$('hurt'),strip:$('strip'),
   cal:$('cal'),scope:$('scope'),pause:$('pause'),ammoOf:$('ammoOf'),
-  guns:$('guns'),gunColt:$('gunColt'),gunRifle:$('gunRifle')
+  guns:$('guns'),gunColt:$('gunColt'),gunRifle:$('gunRifle'),perf:$('perf')
 };
 (function initHud(){
   var i,b;
@@ -2900,15 +3206,35 @@ window.addEventListener('keydown',function(e){
   if(e.code==='Digit1') setWeapon('colt');
   if(e.code==='Digit2') setWeapon('rifle');
   if(e.code==='KeyZ'){ P.adsHold=!P.adsHold; AU.click(0.13); }   // sticky aim, if you prefer it
+  if(e.code==='F3'){ e.preventDefault(); perfOn=!perfOn; ui.perf.hidden=!perfOn; }
   if(e.code==='Space'&&GAME.state==='play') e.preventDefault();
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.code)>=0) e.preventDefault();
 });
 window.addEventListener('keyup',function(e){ keys[e.code]=false; });
 window.addEventListener('blur',function(){ keys={}; });
+/* Capturing the pointer hands over a jump, not a movement. The first report
+   after the cursor is taken carries the whole distance from wherever it happened
+   to be sitting to the middle of the screen - one flick of several hundred
+   pixels, arriving as though you had thrown the mouse - and the view snaps to
+   whatever bearing that works out to. Chrome will post the odd one of those out
+   of nowhere as well.
+
+   Neither is anything a hand did, so neither is allowed to move the view. The
+   first few reports after a capture are dropped outright, and after that
+   anything the size of a teleport is ignored rather than trusted: a real flick
+   arrives spread across many small reports, because the mouse is sampled far
+   faster than the screen is drawn. */
+var LOOK_DROP=600, LOOK_MAX=200, lookWarm=0;
+function look(dx,dy){
+  if(lookWarm>0){ lookWarm--; return; }
+  if(Math.abs(dx)>LOOK_DROP||Math.abs(dy)>LOOK_DROP) return;
+  mouseDX+=clamp(dx,-LOOK_MAX,LOOK_MAX);
+  mouseDY+=clamp(dy,-LOOK_MAX,LOOK_MAX);
+}
 document.addEventListener('mousemove',function(e){
-  if(document.pointerLockElement===canvas){ mouseDX+=e.movementX||0; mouseDY+=e.movementY||0; }
+  if(document.pointerLockElement===canvas){ look(e.movementX||0,e.movementY||0); }
   else {
-    if(dragging){ mouseDX+=e.movementX||0; mouseDY+=e.movementY||0; }
+    if(dragging) look(e.movementX||0,e.movementY||0);
     curX=e.clientX; curY=e.clientY;
   }
 });
@@ -2969,6 +3295,7 @@ document.addEventListener('pointerlockerror',function(){ lockFails++; setCursorA
 document.addEventListener('pointerlockchange',function(){
   if(document.pointerLockElement===canvas){
     lockFails=0; GAME.paused=false; setCursorAim(false);
+    lookWarm=3;                        // the capture jump arrives on the next report
     if(stateMsgT>90){ ui.state.textContent=''; stateMsgT=0; }
   }else if(GAME.state==='play'&&!cursorAim){
     openPause();                       // the mouse got away, so put the menu up
@@ -3056,7 +3383,11 @@ function aimStep(dt){
     camera.updateProjectionMatrix();
   }
   ui.scope.classList.toggle('on',on&&P.weapon==='rifle');
-  ui.cross.style.visibility=on?'hidden':'';
+  /* No crosshair on the Springfield. It is a single-shot rifle with iron sights
+     and no business being hip-shot at a mark it draws for you - if you want to
+     know where it is pointed, put the sights up and look down the barrel. The
+     Colt keeps its crosshair; that is a gun you fire from the hip. */
+  ui.cross.style.visibility=(on||P.weapon==='rifle')?'hidden':'';
 }
 
 /* one hitscan, shared by both guns */
@@ -3271,6 +3602,10 @@ function updatePlayer(dt){
 }
 
 /* --- the viewmodel --- */
+/* One leg of a longer action: 0 before it starts, 1 once it is done, so a
+   sequence can be written as the steps it is made of rather than as one curve
+   that has to be all of them at once. */
+function seg(u,a,b){ return clamp((u-a)/(b-a),0,1); }
 function updateGun(dt){
   P.recoil=damp(P.recoil,0,11,dt);
   flash.m.opacity=Math.max(0,flash.m.opacity-dt*14);
@@ -3306,19 +3641,40 @@ function updateGun(dt){
   }
   gunRig.position.set(damp(gunRig.position.x,tx,16,dt),damp(gunRig.position.y,ty,16,dt),damp(gunRig.position.z,tz,20,dt));
   gunRig.rotation.set(damp(gunRig.rotation.x,rx,18,dt),damp(gunRig.rotation.y,ry,14,dt),damp(gunRig.rotation.z,rz,14,dt));
-  // the Sharps
-  if(P.rifleWork>0){
+  /* --- the Springfield's trapdoor, worked in the order a man actually works it.
+     The block is thumbed up and forward, the spent case flips out of the open
+     breech, a fresh round goes in and the block snaps down onto it. It used to
+     be a single sine sweep that opened and shut the block in one motion with no
+     brass at all, and the rifle simply held a fixed tilt for the whole second
+     and a half and then snapped back level. */
+  var working=P.rifleWork>0;
+  var ru=working?clamp(1-P.rifleWork/1.55,0,1):0;
+  if(working){
     P.rifleWork-=dt;
-    var ru=clamp(1-P.rifleWork/1.55,0,1);
-    if(rifleLever) rifleLever.rotation.x=-Math.sin(clamp(ru*1.6,0,1)*Math.PI)*1.35;
-    if(!P.rifleClicked&&ru>0.62){ P.rifleClicked=true; AU.clink(); }
-    if(P.rifleWork<=0){ P.rifleWork=0; AU.click(0.22); }
-  }
+    var block=seg(ru,0.14,0.42)-seg(ru,0.68,0.90);       // 0 shut, 1 stood open
+    if(rifleLever) rifleLever.rotation.x=-block*1.5;
+    if(!P.rifleClicked&&ru>0.38){                        // the case comes out with the block
+      P.rifleClicked=true; AU.clink();
+      var rc=activeCam(); rc.getWorldQuaternion(_q);
+      _v.set(0,0,-1).applyQuaternion(_q);
+      _v3.set(1,0,0).applyQuaternion(_q);
+      FX.eject(rc.position.clone().addScaledVector(_v,0.30).addScaledVector(_v3,0.09)
+                 .add(new THREE.Vector3(0,-0.09,0)),_v3,new THREE.Vector3(0,1,0));
+    }
+    if(P.rifleWork<=0){ P.rifleWork=0; AU.click(0.22); }  // the latch
+  }else if(rifleLever) rifleLever.rotation.x=damp(rifleLever.rotation.x,0,14,dt);
+  /* He turns the rifle over to get at the breech and brings it back level, so
+     the roll rises and falls across the cycle instead of being held. */
+  var roll=working?Math.sin(seg(ru,0.02,0.96)*Math.PI):0;
   rflash.m.opacity=Math.max(0,rflash.m.opacity-dt*12);
-  var rtx=(aim?0.000:0.115)+bobX*1.4+P.sway*(aim?0.02:0.05);
-  var rty=(aim?-0.046:-0.110)+bobY*1.4+P.swayY*(aim?0.02:0.04);
-  var rtz=(aim?-0.250:-0.400)+P.recoil*0.10;
-  var rrx=P.recoil*0.42+(P.rifleWork>0?0.10:0);
+  var rtx=(aim?0.000:0.115)+bobX*1.4+P.sway*(aim?0.02:0.05)+roll*0.020;
+  /* The aim drop is the sight height, and it is the only aiming aid the rifle
+     has now: it puts the top of the front blade on the middle of the screen,
+     which is where the shot goes, with the rear notch sitting a few pixels above
+     it. Line the blade up in the notch and you are on. */
+  var rty=(aim?-0.0465:-0.110)+bobY*1.4+P.swayY*(aim?0.02:0.04)-roll*0.018;
+  var rtz=(aim?-0.250:-0.400)+P.recoil*0.10+roll*0.030;
+  var rrx=P.recoil*0.42+roll*0.17;
   if(cursorAim&&!aim){
     var rnx=clamp((curX/window.innerWidth)*2-1,-1,1), rny=clamp((curY/window.innerHeight)*2-1,-1,1);
     rtx-=rnx*0.03; rty-=rny*0.02; rrx-=rny*0.09;
@@ -3326,7 +3682,7 @@ function updateGun(dt){
   rifleRig.position.set(damp(rifleRig.position.x,rtx,16,dt),damp(rifleRig.position.y,rty,16,dt),damp(rifleRig.position.z,rtz,20,dt));
   rifleRig.rotation.x=damp(rifleRig.rotation.x,rrx,16,dt);
   rifleRig.rotation.y=damp(rifleRig.rotation.y,aim?0:0.09,14,dt);
-  rifleRig.rotation.z=damp(rifleRig.rotation.z,P.rifleWork>0?-0.22:0,10,dt);
+  rifleRig.rotation.z=damp(rifleRig.rotation.z,-0.34*roll,12,dt);
 
   gunRig.visible=P.weapon==='colt';
   rifleRig.visible=P.weapon==='rifle';
@@ -3392,6 +3748,7 @@ function outlawShoot(e,d){
   FX.tracer(mz,target);
   FX.puff(mz,1,0xFFC963,0.10,0.4,0.4);
   AU.shot(d);
+  e.kick=1;                                        // the arm goes up with the shot
   if(hit){
     var dmg=rr(7,13);
     GAME.hp-=dmg; P.hurtT=0.5;
@@ -3407,10 +3764,16 @@ function dropRifle(x,y,z){
   feed('his <em>Sharps</em> is still on the roof');
 }
 
+/* How high off the roof the Springfield lies now that he is prone. The muzzle,
+   the sight line and the shot all have to come from the same place, or he fires
+   from somewhere he cannot see from. */
+var RIFLE_Y=0.30;
 function riflemanShoot(e,d){
-  var mz=new THREE.Vector3(e.x,e.y+1.42,e.z);
-  var il=1/(d||1);
-  mz.x+=(P.x-e.x)*il*0.95; mz.z+=(P.z-e.z)*il*0.95;
+  /* Straight off the end of the barrel, wherever the tracking has put it. It
+     used to be reckoned from his middle and then shoved forward by a fixed
+     amount, which was near enough while he knelt in the open and is not now
+     that he is lying behind a wall with a gap in it. */
+  var mz=e.muzzle.getWorldPosition(new THREE.Vector3());
   var target=new THREE.Vector3(P.x,P.y+EYE-0.2,P.z);
   var chance=clamp(0.60-P.moving*0.34-d*0.0022,0.10,0.60);
   var hit=rnd()<chance;
@@ -3432,9 +3795,12 @@ function updateEnemies(dt){
       if(e.fallT<1){
         e.fallT+=dt*(e.kind==='sniper'?1.15:2.2);
         var u=Math.min(1,e.fallT);
-        e.g.rotation.x=-u*Math.PI/2*0.94;
+        /* A man on his feet falls over. This one is already down, so tipping him
+           through a right angle stood him on his head - he slumps and rolls off
+           the front instead. */
+        e.g.rotation.x=(e.kind==='sniper')?-u*0.26:-u*Math.PI/2*0.94;
         if(e.kind==='sniper'){
-          e.g.rotation.z=u*0.85;                       // he comes off the roof
+          e.g.rotation.z=u*1.15;                       // he comes off the roof
           p.y=lerp(e.y,terrainH(e.x,e.z),u*u);
           p.x=e.x-Math.sin(e.yaw)*u*1.7;
           p.z=e.z-Math.cos(e.yaw)*u*1.7;
@@ -3454,9 +3820,21 @@ function updateEnemies(dt){
          the whole time, rifle pointed off the wrong side of the roof. */
       e.g.rotation.y=Math.atan2(sdx,sdz);
       e.yaw=e.g.rotation.y;
-      e.rifle.rotation.x=clamp(-Math.atan2((e.y+1.35)-(P.y+1.0),sd),-0.95,0.30);
+      /* The rifle now lies down the pivot's +z instead of its -z, so the sign of
+         the elevation goes with it: he is above you, so the muzzle has to come
+         down, and that is a positive turn about x once the barrel points the
+         other way. */
+      e.rifle.rotation.x=clamp(Math.atan2((e.y+RIFLE_Y)-(P.y+1.0),sd),-0.30,0.95);
       if(e.hitT>0) e.hitT-=dt;
-      if(!insideBuilding(P.x,P.z)&&sd<95){
+      /* Being indoors used to be the only thing that stopped him, which meant
+         everything else in the county - the water tower, the church, the corner
+         of the building you were flattened against - was scenery to him and he
+         shot straight through it. He is the hardest hitter in the game, so that
+         was most of what "I was behind cover" felt like. Now he has to be able
+         to see the spot he aims at, from where he is kneeling to where it is. */
+      var mp=e.muzzle.getWorldPosition(_v4);
+      var sees=losClear(mp.x,mp.z,P.x,P.z,mp.y,P.y+EYE-0.2);
+      if(sees&&!insideBuilding(P.x,P.z)&&sd<95){
         e.charge+=dt;
         var tell=clamp((e.charge-(e.fireCd-1.25))/1.25,0,1);
         if(tell>0&&!e.told){ e.told=true; AU.click(0.10); }
@@ -3502,11 +3880,31 @@ function updateEnemies(dt){
       e.legR.hip.rotation.x  =-Math.sin(e.phase)*0.30;
       e.legL.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95))*0.34;
       e.legR.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95+Math.PI))*0.34;
+      /* An outlaw is built facing his own -z, so an arm swung round to +z is
+         pointing out behind him. This pose was negative, which is how the whole
+         town came to draw down over its own shoulder - it just never showed
+         until the gun came up properly. Positive is out in front. */
       e.armL.rotation.x=damp(e.armL.rotation.x,-0.15,6,dt);
-      e.armR.rotation.x=damp(e.armR.rotation.x,-1.42,9,dt);
+      e.armR.rotation.x=damp(e.armR.rotation.x,0.90,9,dt);   // gun out, held low
       lift=Math.abs(Math.sin(e.phase))*0.018;
     }
     p.x=e.x; p.z=e.z; p.y=terrainH(e.x,e.z)+lift;
+
+    /* Presenting the pistol. The swings above are what the arms do while he is
+       just closing the ground; this takes the gun arm over the moment he has
+       you, so the Colt is levelled at you before the shot rather than hanging at
+       his side through it. One arm, the way a man actually shoots a single
+       action - the off hand stays where the walk put it. Blended by `present`
+       rather than switched, so he brings it up instead of snapping to it, and
+       the walk still shows through while he is only half round to you.
+
+       Past a right angle the hand keeps climbing, so the recoil kick throws the
+       muzzle up off the shot, which is what says who just fired at you. */
+    var aiming=(los&&d<30)?1:0;
+    e.present=damp(e.present,aiming,7,dt);
+    e.kick=Math.max(0,e.kick-dt*4.5);
+    if(e.present>0.005)
+      e.armR.rotation.x=lerp(e.armR.rotation.x,1.52+e.kick*0.50,e.present);
 
     if(los&&d<30){
       e.fireCd-=dt*(e.alerted?1.2:1);
@@ -3637,8 +4035,20 @@ function updateCar(dt){
     H.tail.rotation.z=Math.sin(car.gait*0.8+hi)*0.14;
   }
   if(Math.abs(s)>0.5){
-    car.beat-=dt*(1.7+Math.abs(s)*0.80)/Math.PI;
-    if(car.beat<=0){ AU.clop(clamp(Math.abs(s)/9,0.25,1)); car.beat=1; }
+    /* The beat used to be reset to a flat 1 and only ever fired once per frame,
+       which threw the overshoot away every time - so the gap between hoofbeats
+       was the frame it happened to be noticed on rather than the stride, and a
+       long frame swallowed a beat outright. Carrying the remainder keeps the
+       team in step, and placing each one on the audio clock at the moment it was
+       actually due takes the frame timing out of it altogether. */
+    var rate=(1.7+Math.abs(s)*0.80)/Math.PI;
+    car.beat-=dt*rate;
+    var guard=0;
+    while(car.beat<=0&&guard++<4){
+      var late=-car.beat/rate;                     // it fell due this far back
+      AU.clop(clamp(Math.abs(s)/9,0.25,1),AU.now()+Math.max(0,0.06-late));
+      car.beat+=1;
+    }
   }
   if(Math.abs(s)>2&&rnd()<dt*12)
     FX.puff(new THREE.Vector3(car.x-Math.sin(car.yaw)*1.6,gy+0.2,car.z-Math.cos(car.yaw)*1.6),1,0xC2A177,0.32,0.6,0.5);
@@ -3874,9 +4284,16 @@ function updateAmbient(dt,cam){
    21. loop
    ============================================================ */
 var last=performance.now(), titleT=0;   // titleT also drives the opening dolly after a quit
+var perfOn=false, perfT=0, perfN=0, perfWorst=0;
 function frame(now){
   requestAnimationFrame(frame);
-  var dt=Math.min(0.05,(now-last)/1000); last=now;
+  /* dt is clamped so that a stall cannot teleport anybody through a wall. The
+     readout wants the real number though - a hitch is the whole complaint, and
+     the clamp is exactly what would hide it. */
+  var raw=(now-last)/1000;
+  var dt=Math.min(0.05,raw); last=now;
+
+  renderer.info.reset();                // autoReset is off, so both passes land in one count
 
   if(GAME.state==='title'){
     titleT+=dt;
@@ -3919,6 +4336,20 @@ function frame(now){
   var cam=activeCam();
   renderer.render(scene,cam);
   if(GAME.state!=='title'){ renderer.clearDepth(); renderer.render(gunScene,gunCam); }
+
+  if(perfOn){
+    perfT+=raw; perfN++;
+    if(raw>perfWorst) perfWorst=raw;    // the drop is what you feel, not the average
+    if(perfT>=0.5){
+      var r=renderer.info.render;
+      ui.perf.textContent=[
+        Math.round(perfN/perfT)+' fps   '+(perfT/perfN*1000).toFixed(1)+' ms',
+        'worst '+(perfWorst*1000).toFixed(0)+' ms',
+        r.calls+' draws   '+(r.triangles/1000).toFixed(0)+'k tris'
+      ].join('\n');
+      perfT=0; perfN=0; perfWorst=0;
+    }
+  }
 }
 
 window.addEventListener('resize',function(){

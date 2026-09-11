@@ -18,7 +18,7 @@ var ui={
   tally:$('tally'),bars:$('bars'),state:$('state'),ammoN:$('ammoN'),cyl:$('cyl'),
   feed:$('feed'),prompt:$('prompt'),cross:$('cross'),mark:$('mark'),hurt:$('hurt'),strip:$('strip'),
   cal:$('cal'),scope:$('scope'),pause:$('pause'),ammoOf:$('ammoOf'),
-  guns:$('guns'),gunColt:$('gunColt'),gunRifle:$('gunRifle')
+  guns:$('guns'),gunColt:$('gunColt'),gunRifle:$('gunRifle'),perf:$('perf')
 };
 (function initHud(){
   var i,b;
@@ -59,15 +59,35 @@ window.addEventListener('keydown',function(e){
   if(e.code==='Digit1') setWeapon('colt');
   if(e.code==='Digit2') setWeapon('rifle');
   if(e.code==='KeyZ'){ P.adsHold=!P.adsHold; AU.click(0.13); }   // sticky aim, if you prefer it
+  if(e.code==='F3'){ e.preventDefault(); perfOn=!perfOn; ui.perf.hidden=!perfOn; }
   if(e.code==='Space'&&GAME.state==='play') e.preventDefault();
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.code)>=0) e.preventDefault();
 });
 window.addEventListener('keyup',function(e){ keys[e.code]=false; });
 window.addEventListener('blur',function(){ keys={}; });
+/* Capturing the pointer hands over a jump, not a movement. The first report
+   after the cursor is taken carries the whole distance from wherever it happened
+   to be sitting to the middle of the screen - one flick of several hundred
+   pixels, arriving as though you had thrown the mouse - and the view snaps to
+   whatever bearing that works out to. Chrome will post the odd one of those out
+   of nowhere as well.
+
+   Neither is anything a hand did, so neither is allowed to move the view. The
+   first few reports after a capture are dropped outright, and after that
+   anything the size of a teleport is ignored rather than trusted: a real flick
+   arrives spread across many small reports, because the mouse is sampled far
+   faster than the screen is drawn. */
+var LOOK_DROP=600, LOOK_MAX=200, lookWarm=0;
+function look(dx,dy){
+  if(lookWarm>0){ lookWarm--; return; }
+  if(Math.abs(dx)>LOOK_DROP||Math.abs(dy)>LOOK_DROP) return;
+  mouseDX+=clamp(dx,-LOOK_MAX,LOOK_MAX);
+  mouseDY+=clamp(dy,-LOOK_MAX,LOOK_MAX);
+}
 document.addEventListener('mousemove',function(e){
-  if(document.pointerLockElement===canvas){ mouseDX+=e.movementX||0; mouseDY+=e.movementY||0; }
+  if(document.pointerLockElement===canvas){ look(e.movementX||0,e.movementY||0); }
   else {
-    if(dragging){ mouseDX+=e.movementX||0; mouseDY+=e.movementY||0; }
+    if(dragging) look(e.movementX||0,e.movementY||0);
     curX=e.clientX; curY=e.clientY;
   }
 });
@@ -128,6 +148,7 @@ document.addEventListener('pointerlockerror',function(){ lockFails++; setCursorA
 document.addEventListener('pointerlockchange',function(){
   if(document.pointerLockElement===canvas){
     lockFails=0; GAME.paused=false; setCursorAim(false);
+    lookWarm=3;                        // the capture jump arrives on the next report
     if(stateMsgT>90){ ui.state.textContent=''; stateMsgT=0; }
   }else if(GAME.state==='play'&&!cursorAim){
     openPause();                       // the mouse got away, so put the menu up
@@ -215,7 +236,11 @@ function aimStep(dt){
     camera.updateProjectionMatrix();
   }
   ui.scope.classList.toggle('on',on&&P.weapon==='rifle');
-  ui.cross.style.visibility=on?'hidden':'';
+  /* No crosshair on the Springfield. It is a single-shot rifle with iron sights
+     and no business being hip-shot at a mark it draws for you - if you want to
+     know where it is pointed, put the sights up and look down the barrel. The
+     Colt keeps its crosshair; that is a gun you fire from the hip. */
+  ui.cross.style.visibility=(on||P.weapon==='rifle')?'hidden':'';
 }
 
 /* one hitscan, shared by both guns */
@@ -430,6 +455,10 @@ function updatePlayer(dt){
 }
 
 /* --- the viewmodel --- */
+/* One leg of a longer action: 0 before it starts, 1 once it is done, so a
+   sequence can be written as the steps it is made of rather than as one curve
+   that has to be all of them at once. */
+function seg(u,a,b){ return clamp((u-a)/(b-a),0,1); }
 function updateGun(dt){
   P.recoil=damp(P.recoil,0,11,dt);
   flash.m.opacity=Math.max(0,flash.m.opacity-dt*14);
@@ -465,19 +494,40 @@ function updateGun(dt){
   }
   gunRig.position.set(damp(gunRig.position.x,tx,16,dt),damp(gunRig.position.y,ty,16,dt),damp(gunRig.position.z,tz,20,dt));
   gunRig.rotation.set(damp(gunRig.rotation.x,rx,18,dt),damp(gunRig.rotation.y,ry,14,dt),damp(gunRig.rotation.z,rz,14,dt));
-  // the Sharps
-  if(P.rifleWork>0){
+  /* --- the Springfield's trapdoor, worked in the order a man actually works it.
+     The block is thumbed up and forward, the spent case flips out of the open
+     breech, a fresh round goes in and the block snaps down onto it. It used to
+     be a single sine sweep that opened and shut the block in one motion with no
+     brass at all, and the rifle simply held a fixed tilt for the whole second
+     and a half and then snapped back level. */
+  var working=P.rifleWork>0;
+  var ru=working?clamp(1-P.rifleWork/1.55,0,1):0;
+  if(working){
     P.rifleWork-=dt;
-    var ru=clamp(1-P.rifleWork/1.55,0,1);
-    if(rifleLever) rifleLever.rotation.x=-Math.sin(clamp(ru*1.6,0,1)*Math.PI)*1.35;
-    if(!P.rifleClicked&&ru>0.62){ P.rifleClicked=true; AU.clink(); }
-    if(P.rifleWork<=0){ P.rifleWork=0; AU.click(0.22); }
-  }
+    var block=seg(ru,0.14,0.42)-seg(ru,0.68,0.90);       // 0 shut, 1 stood open
+    if(rifleLever) rifleLever.rotation.x=-block*1.5;
+    if(!P.rifleClicked&&ru>0.38){                        // the case comes out with the block
+      P.rifleClicked=true; AU.clink();
+      var rc=activeCam(); rc.getWorldQuaternion(_q);
+      _v.set(0,0,-1).applyQuaternion(_q);
+      _v3.set(1,0,0).applyQuaternion(_q);
+      FX.eject(rc.position.clone().addScaledVector(_v,0.30).addScaledVector(_v3,0.09)
+                 .add(new THREE.Vector3(0,-0.09,0)),_v3,new THREE.Vector3(0,1,0));
+    }
+    if(P.rifleWork<=0){ P.rifleWork=0; AU.click(0.22); }  // the latch
+  }else if(rifleLever) rifleLever.rotation.x=damp(rifleLever.rotation.x,0,14,dt);
+  /* He turns the rifle over to get at the breech and brings it back level, so
+     the roll rises and falls across the cycle instead of being held. */
+  var roll=working?Math.sin(seg(ru,0.02,0.96)*Math.PI):0;
   rflash.m.opacity=Math.max(0,rflash.m.opacity-dt*12);
-  var rtx=(aim?0.000:0.115)+bobX*1.4+P.sway*(aim?0.02:0.05);
-  var rty=(aim?-0.046:-0.110)+bobY*1.4+P.swayY*(aim?0.02:0.04);
-  var rtz=(aim?-0.250:-0.400)+P.recoil*0.10;
-  var rrx=P.recoil*0.42+(P.rifleWork>0?0.10:0);
+  var rtx=(aim?0.000:0.115)+bobX*1.4+P.sway*(aim?0.02:0.05)+roll*0.020;
+  /* The aim drop is the sight height, and it is the only aiming aid the rifle
+     has now: it puts the top of the front blade on the middle of the screen,
+     which is where the shot goes, with the rear notch sitting a few pixels above
+     it. Line the blade up in the notch and you are on. */
+  var rty=(aim?-0.0465:-0.110)+bobY*1.4+P.swayY*(aim?0.02:0.04)-roll*0.018;
+  var rtz=(aim?-0.250:-0.400)+P.recoil*0.10+roll*0.030;
+  var rrx=P.recoil*0.42+roll*0.17;
   if(cursorAim&&!aim){
     var rnx=clamp((curX/window.innerWidth)*2-1,-1,1), rny=clamp((curY/window.innerHeight)*2-1,-1,1);
     rtx-=rnx*0.03; rty-=rny*0.02; rrx-=rny*0.09;
@@ -485,7 +535,7 @@ function updateGun(dt){
   rifleRig.position.set(damp(rifleRig.position.x,rtx,16,dt),damp(rifleRig.position.y,rty,16,dt),damp(rifleRig.position.z,rtz,20,dt));
   rifleRig.rotation.x=damp(rifleRig.rotation.x,rrx,16,dt);
   rifleRig.rotation.y=damp(rifleRig.rotation.y,aim?0:0.09,14,dt);
-  rifleRig.rotation.z=damp(rifleRig.rotation.z,P.rifleWork>0?-0.22:0,10,dt);
+  rifleRig.rotation.z=damp(rifleRig.rotation.z,-0.34*roll,12,dt);
 
   gunRig.visible=P.weapon==='colt';
   rifleRig.visible=P.weapon==='rifle';
@@ -551,6 +601,7 @@ function outlawShoot(e,d){
   FX.tracer(mz,target);
   FX.puff(mz,1,0xFFC963,0.10,0.4,0.4);
   AU.shot(d);
+  e.kick=1;                                        // the arm goes up with the shot
   if(hit){
     var dmg=rr(7,13);
     GAME.hp-=dmg; P.hurtT=0.5;
@@ -566,10 +617,16 @@ function dropRifle(x,y,z){
   feed('his <em>Sharps</em> is still on the roof');
 }
 
+/* How high off the roof the Springfield lies now that he is prone. The muzzle,
+   the sight line and the shot all have to come from the same place, or he fires
+   from somewhere he cannot see from. */
+var RIFLE_Y=0.30;
 function riflemanShoot(e,d){
-  var mz=new THREE.Vector3(e.x,e.y+1.42,e.z);
-  var il=1/(d||1);
-  mz.x+=(P.x-e.x)*il*0.95; mz.z+=(P.z-e.z)*il*0.95;
+  /* Straight off the end of the barrel, wherever the tracking has put it. It
+     used to be reckoned from his middle and then shoved forward by a fixed
+     amount, which was near enough while he knelt in the open and is not now
+     that he is lying behind a wall with a gap in it. */
+  var mz=e.muzzle.getWorldPosition(new THREE.Vector3());
   var target=new THREE.Vector3(P.x,P.y+EYE-0.2,P.z);
   var chance=clamp(0.60-P.moving*0.34-d*0.0022,0.10,0.60);
   var hit=rnd()<chance;
@@ -591,9 +648,12 @@ function updateEnemies(dt){
       if(e.fallT<1){
         e.fallT+=dt*(e.kind==='sniper'?1.15:2.2);
         var u=Math.min(1,e.fallT);
-        e.g.rotation.x=-u*Math.PI/2*0.94;
+        /* A man on his feet falls over. This one is already down, so tipping him
+           through a right angle stood him on his head - he slumps and rolls off
+           the front instead. */
+        e.g.rotation.x=(e.kind==='sniper')?-u*0.26:-u*Math.PI/2*0.94;
         if(e.kind==='sniper'){
-          e.g.rotation.z=u*0.85;                       // he comes off the roof
+          e.g.rotation.z=u*1.15;                       // he comes off the roof
           p.y=lerp(e.y,terrainH(e.x,e.z),u*u);
           p.x=e.x-Math.sin(e.yaw)*u*1.7;
           p.z=e.z-Math.cos(e.yaw)*u*1.7;
@@ -613,9 +673,21 @@ function updateEnemies(dt){
          the whole time, rifle pointed off the wrong side of the roof. */
       e.g.rotation.y=Math.atan2(sdx,sdz);
       e.yaw=e.g.rotation.y;
-      e.rifle.rotation.x=clamp(-Math.atan2((e.y+1.35)-(P.y+1.0),sd),-0.95,0.30);
+      /* The rifle now lies down the pivot's +z instead of its -z, so the sign of
+         the elevation goes with it: he is above you, so the muzzle has to come
+         down, and that is a positive turn about x once the barrel points the
+         other way. */
+      e.rifle.rotation.x=clamp(Math.atan2((e.y+RIFLE_Y)-(P.y+1.0),sd),-0.30,0.95);
       if(e.hitT>0) e.hitT-=dt;
-      if(!insideBuilding(P.x,P.z)&&sd<95){
+      /* Being indoors used to be the only thing that stopped him, which meant
+         everything else in the county - the water tower, the church, the corner
+         of the building you were flattened against - was scenery to him and he
+         shot straight through it. He is the hardest hitter in the game, so that
+         was most of what "I was behind cover" felt like. Now he has to be able
+         to see the spot he aims at, from where he is kneeling to where it is. */
+      var mp=e.muzzle.getWorldPosition(_v4);
+      var sees=losClear(mp.x,mp.z,P.x,P.z,mp.y,P.y+EYE-0.2);
+      if(sees&&!insideBuilding(P.x,P.z)&&sd<95){
         e.charge+=dt;
         var tell=clamp((e.charge-(e.fireCd-1.25))/1.25,0,1);
         if(tell>0&&!e.told){ e.told=true; AU.click(0.10); }
@@ -661,11 +733,31 @@ function updateEnemies(dt){
       e.legR.hip.rotation.x  =-Math.sin(e.phase)*0.30;
       e.legL.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95))*0.34;
       e.legR.knee.rotation.x =-Math.max(0,Math.sin(e.phase+0.95+Math.PI))*0.34;
+      /* An outlaw is built facing his own -z, so an arm swung round to +z is
+         pointing out behind him. This pose was negative, which is how the whole
+         town came to draw down over its own shoulder - it just never showed
+         until the gun came up properly. Positive is out in front. */
       e.armL.rotation.x=damp(e.armL.rotation.x,-0.15,6,dt);
-      e.armR.rotation.x=damp(e.armR.rotation.x,-1.42,9,dt);
+      e.armR.rotation.x=damp(e.armR.rotation.x,0.90,9,dt);   // gun out, held low
       lift=Math.abs(Math.sin(e.phase))*0.018;
     }
     p.x=e.x; p.z=e.z; p.y=terrainH(e.x,e.z)+lift;
+
+    /* Presenting the pistol. The swings above are what the arms do while he is
+       just closing the ground; this takes the gun arm over the moment he has
+       you, so the Colt is levelled at you before the shot rather than hanging at
+       his side through it. One arm, the way a man actually shoots a single
+       action - the off hand stays where the walk put it. Blended by `present`
+       rather than switched, so he brings it up instead of snapping to it, and
+       the walk still shows through while he is only half round to you.
+
+       Past a right angle the hand keeps climbing, so the recoil kick throws the
+       muzzle up off the shot, which is what says who just fired at you. */
+    var aiming=(los&&d<30)?1:0;
+    e.present=damp(e.present,aiming,7,dt);
+    e.kick=Math.max(0,e.kick-dt*4.5);
+    if(e.present>0.005)
+      e.armR.rotation.x=lerp(e.armR.rotation.x,1.52+e.kick*0.50,e.present);
 
     if(los&&d<30){
       e.fireCd-=dt*(e.alerted?1.2:1);
@@ -796,8 +888,20 @@ function updateCar(dt){
     H.tail.rotation.z=Math.sin(car.gait*0.8+hi)*0.14;
   }
   if(Math.abs(s)>0.5){
-    car.beat-=dt*(1.7+Math.abs(s)*0.80)/Math.PI;
-    if(car.beat<=0){ AU.clop(clamp(Math.abs(s)/9,0.25,1)); car.beat=1; }
+    /* The beat used to be reset to a flat 1 and only ever fired once per frame,
+       which threw the overshoot away every time - so the gap between hoofbeats
+       was the frame it happened to be noticed on rather than the stride, and a
+       long frame swallowed a beat outright. Carrying the remainder keeps the
+       team in step, and placing each one on the audio clock at the moment it was
+       actually due takes the frame timing out of it altogether. */
+    var rate=(1.7+Math.abs(s)*0.80)/Math.PI;
+    car.beat-=dt*rate;
+    var guard=0;
+    while(car.beat<=0&&guard++<4){
+      var late=-car.beat/rate;                     // it fell due this far back
+      AU.clop(clamp(Math.abs(s)/9,0.25,1),AU.now()+Math.max(0,0.06-late));
+      car.beat+=1;
+    }
   }
   if(Math.abs(s)>2&&rnd()<dt*12)
     FX.puff(new THREE.Vector3(car.x-Math.sin(car.yaw)*1.6,gy+0.2,car.z-Math.cos(car.yaw)*1.6),1,0xC2A177,0.32,0.6,0.5);
@@ -1033,9 +1137,16 @@ function updateAmbient(dt,cam){
    21. loop
    ============================================================ */
 var last=performance.now(), titleT=0;   // titleT also drives the opening dolly after a quit
+var perfOn=false, perfT=0, perfN=0, perfWorst=0;
 function frame(now){
   requestAnimationFrame(frame);
-  var dt=Math.min(0.05,(now-last)/1000); last=now;
+  /* dt is clamped so that a stall cannot teleport anybody through a wall. The
+     readout wants the real number though - a hitch is the whole complaint, and
+     the clamp is exactly what would hide it. */
+  var raw=(now-last)/1000;
+  var dt=Math.min(0.05,raw); last=now;
+
+  renderer.info.reset();                // autoReset is off, so both passes land in one count
 
   if(GAME.state==='title'){
     titleT+=dt;
@@ -1078,6 +1189,20 @@ function frame(now){
   var cam=activeCam();
   renderer.render(scene,cam);
   if(GAME.state!=='title'){ renderer.clearDepth(); renderer.render(gunScene,gunCam); }
+
+  if(perfOn){
+    perfT+=raw; perfN++;
+    if(raw>perfWorst) perfWorst=raw;    // the drop is what you feel, not the average
+    if(perfT>=0.5){
+      var r=renderer.info.render;
+      ui.perf.textContent=[
+        Math.round(perfN/perfT)+' fps   '+(perfT/perfN*1000).toFixed(1)+' ms',
+        'worst '+(perfWorst*1000).toFixed(0)+' ms',
+        r.calls+' draws   '+(r.triangles/1000).toFixed(0)+'k tris'
+      ].join('\n');
+      perfT=0; perfN=0; perfWorst=0;
+    }
+  }
 }
 
 window.addEventListener('resize',function(){

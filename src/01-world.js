@@ -67,19 +67,24 @@ var AU={
     this.ok=true;
   },
   resume:function(){ if(this.ok&&this.ctx.state==='suspended') this.ctx.resume(); },
-  burst:function(vol,cut,dur,q){
+  /* `when` schedules the sound at a given point on the audio clock instead of
+     the instant the call is made. Anything with a rhythm to it needs that: the
+     frame the call comes from lands wherever the frame happens to land, and a
+     hoofbeat placed on frame times rather than on the beat it was due comes out
+     limping. Never behind the clock, or the ramps start in the past. */
+  burst:function(vol,cut,dur,q,when){
     var c=this.ctx,s=c.createBufferSource(); s.buffer=this.noise;
     s.playbackRate.value=rr(0.85,1.15);
     var f=c.createBiquadFilter(); f.type='lowpass'; f.Q.value=q||1;
-    var t=c.currentTime;
+    var t=Math.max(c.currentTime,when||0);
     f.frequency.setValueAtTime(cut,t); f.frequency.exponentialRampToValueAtTime(Math.max(120,cut*0.14),t+dur);
     var g=c.createGain();
     g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0005,t+dur);
     s.connect(f); f.connect(g); g.connect(this.master); s.start(t); s.stop(t+dur+0.05);
   },
-  thump:function(vol,f0,f1,dur){
+  thump:function(vol,f0,f1,dur,when){
     var c=this.ctx,o=c.createOscillator(); o.type='sine';
-    var t=c.currentTime;
+    var t=Math.max(c.currentTime,when||0);
     o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f1,t+dur);
     var g=c.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0005,t+dur);
     o.connect(g); g.connect(this.master); o.start(t); o.stop(t+dur+0.05);
@@ -120,11 +125,12 @@ var AU={
   },
   thud:function(){ if(!this.ok)return; this.burst(0.4,700,0.16,1.2); this.thump(0.3,90,45,0.16); },
   hurt:function(){ if(!this.ok)return; this.thump(0.42,220,60,0.35); this.burst(0.25,600,0.25,1); },
-  clop:function(v){
+  clop:function(v,when){
     if(!this.ok)return;
-    this.burst(0.16*v,2000,0.055,2.2);
-    this.thump(0.13*v,150,62,0.075);
+    this.burst(0.16*v,2000,0.055,2.2,when);
+    this.thump(0.13*v,150,62,0.075,when);
   },
+  now:function(){ return this.ok?this.ctx.currentTime:0; },
   whinny:function(){
     if(!this.ok)return;
     var c=this.ctx,t=c.currentTime;
@@ -489,10 +495,25 @@ var ENV=envTex();
    ============================================================ */
 var canvas=$('view');
 var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.75));
+/* Every setting on this page costs the same on every frame forever, so the ones
+   that scale the whole frame are the ones worth being mean about. Pixel ratio is
+   the meanest of the lot: it is quadratic. A 1080p laptop panel reporting DPR 1.5
+   was being handed 2880x1620 to fill, with MSAA on top, for a picture that then
+   has a vignette and a film grain laid over it. 1.25 is as far as this scene can
+   tell the difference. */
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.25));
 renderer.setSize(window.innerWidth,window.innerHeight,false);
 renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.shadowMap.type=THREE.PCFShadowMap;
+/* The shadow map is rebuilt every frame, which means every caster in the world
+   is drawn a second time. That was worth throttling when the town was two and a
+   half thousand casters; now that the buildings are flattened it is about five
+   hundred, and rebuilding costs less than the throttle did. The throttle bought
+   an average frame that was cheaper and a frame time that was not: four light
+   frames and one heavy one, fifteen times a second. You cannot feel an average.
+   You can feel that, and it is worst in the mouse, because turning is the one
+   thing where the picture has to keep time with your hand. */
+renderer.info.autoReset=false;          // the loop resets it, so the count covers both passes
 renderer.outputEncoding=THREE.sRGBEncoding;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.06;
@@ -524,12 +545,17 @@ scene.add(new THREE.HemisphereLight(0xE9C08C,0x6B4E33,0.62));
 var sun=new THREE.DirectionalLight(0xFFD8A4,1.15);
 sun.position.set(74,58,-46);
 sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);
+sun.shadow.mapSize.set(1024,1024);
 sun.shadow.camera.near=1; sun.shadow.camera.far=260;
 var SD=58;
 sun.shadow.camera.left=-SD; sun.shadow.camera.right=SD;
 sun.shadow.camera.top=SD; sun.shadow.camera.bottom=-SD;
 sun.shadow.bias=-0.0009;
+/* Halving the map doubled the width of a shadow texel, which is what turns into
+   acne on a surface the sun is raking across. normalBias walks the lookup off
+   along the surface normal by a bit more than a texel, which fixes it there
+   rather than by pushing every shadow in the world further from its caster. */
+sun.shadow.normalBias=0.02;
 scene.add(sun); scene.add(sun.target);
 var backLight=new THREE.DirectionalLight(0x8FA6C4,0.22); backLight.position.set(-50,30,60); scene.add(backLight);
 
@@ -697,6 +723,104 @@ function box(w,h,d,mat,x,y,z,parent){
   (parent||world).add(m); return m;
 }
 
+/* --- baking a cluster of parts down into one mesh ---
+   A tumbleweed is fifty-six twigs and a saguaro is a dozen limbs, and authoring
+   them that way is the only sane way to write them: each part gets its own
+   position, its own rotation, its own taper. The trouble is that the card does
+   not care how the thing was written. Every mesh is a draw call, and the shadow
+   pass draws it again, so eight tumbleweeds alone were nine hundred draws a
+   frame for something the size of a hat.
+
+   Nothing in one of these clusters ever moves relative to the rest of it, so
+   once it is built the parts can be flattened into a single buffer - the local
+   matrix is baked into the vertices and the whole snarl becomes one draw. The
+   picture is identical; the same triangles arrive with the same normals under
+   the same material.
+
+   Baking per cluster and not across the whole map is deliberate. One merged
+   mesh for all eighty-six cacti would be a single draw, but it would also be a
+   single bounding sphere the size of the county, and the moment any of it is on
+   screen all of it is drawn. Per cluster, frustum culling still throws away
+   everything behind you. */
+var _bv=new THREE.Vector3(), _bn=new THREE.Matrix3();
+function mergeParts(parts,mat){
+  var i,j,vc=0,ic=0,g;
+  for(i=0;i<parts.length;i++){
+    g=parts[i].geometry;
+    vc+=g.attributes.position.count;
+    ic+=g.index?g.index.count:g.attributes.position.count;
+  }
+  var pos=new Float32Array(vc*3), nor=new Float32Array(vc*3), uv=new Float32Array(vc*2);
+  var idx=vc>65535?new Uint32Array(ic):new Uint16Array(ic), vo=0, io=0;
+  for(i=0;i<parts.length;i++){
+    var m=parts[i]; m.updateMatrix();
+    g=m.geometry;
+    var p=g.attributes.position, n=g.attributes.normal, u=g.attributes.uv, c=p.count;
+    _bn.getNormalMatrix(m.matrix);
+    for(j=0;j<c;j++){
+      _bv.set(p.getX(j),p.getY(j),p.getZ(j)).applyMatrix4(m.matrix);
+      pos[(vo+j)*3]=_bv.x; pos[(vo+j)*3+1]=_bv.y; pos[(vo+j)*3+2]=_bv.z;
+      if(n){
+        // A normal is not a point: under a squashed prickly-pear pad it has to
+        // go through the inverse transpose or the lighting comes out wrong.
+        _bv.set(n.getX(j),n.getY(j),n.getZ(j)).applyMatrix3(_bn).normalize();
+        nor[(vo+j)*3]=_bv.x; nor[(vo+j)*3+1]=_bv.y; nor[(vo+j)*3+2]=_bv.z;
+      }
+      if(u){ uv[(vo+j)*2]=u.getX(j); uv[(vo+j)*2+1]=u.getY(j); }
+    }
+    if(g.index){ for(j=0;j<g.index.count;j++) idx[io++]=vo+g.index.getX(j); }
+    else       { for(j=0;j<c;j++) idx[io++]=vo+j; }
+    vo+=c;
+    g.dispose();                        // the parts are about to be thrown away
+  }
+  var out=new THREE.BufferGeometry();
+  out.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  out.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+  out.setAttribute('uv',new THREE.BufferAttribute(uv,2));
+  out.setIndex(new THREE.BufferAttribute(idx,1));
+  return new THREE.Mesh(out,mat);
+}
+
+/* Flatten a group's plain static meshes in place, one merged mesh per material.
+   Pass `from` to leave the first n children alone - a building wants its shell
+   left as it is and only the fittings baked.
+
+   Anything that is not a plain single-material mesh is put back untouched: the
+   barkeep working his rag is a Group inside the saloon and the door leaves swing
+   on their own pivots, and folding either of those into the floor would nail
+   them to it. Baking is only ever safe for what never moves.
+
+   Merged meshes inherit how their parts were lit, so callers that have already
+   set castShadow on the parts do not have to set it again. */
+function bake(g,from){
+  var keys=[],buckets=[],out=[],keep=[],i,k,m,key;
+  from=from||0;
+  for(i=from;i<g.children.length;i++){
+    m=g.children[i];
+    if(!m.isMesh||m.isInstancedMesh||m.isSkinnedMesh||Array.isArray(m.material)
+       ||!m.geometry||!m.geometry.attributes||!m.geometry.attributes.position){
+      keep.push(m); continue;
+    }
+    /* Bucketed by how a part is lit as well as by what it is made of. A wall and
+       the dresser standing against it are cut from the same planks, but the wall
+       throws a shadow across the street and the dresser is furniture in a closed
+       room - and one merged mesh can only do one of those. */
+    key=m.material.uuid+'|'+(m.castShadow?1:0)+(m.receiveShadow?1:0);
+    k=keys.indexOf(key);
+    if(k<0){ k=keys.length; keys.push(key); buckets.push([]); }
+    buckets[k].push(m);
+  }
+  for(i=g.children.length-1;i>=from;i--) g.remove(g.children[i]);
+  for(i=0;i<keep.length;i++) g.add(keep[i]);
+  for(k=0;k<buckets.length;k++){
+    var first=buckets[k][0];
+    m=mergeParts(buckets[k],first.material);
+    m.castShadow=first.castShadow; m.receiveShadow=first.receiveShadow;
+    g.add(m); out.push(m);
+  }
+  return out;
+}
+
 /* A structure is authored in local space with its front face at -Z, then dropped
    into the world at a right-angle rotation. Every wall registers its own
    footprint, so doorways are genuinely open and you walk through them. */
@@ -722,6 +846,31 @@ function Structure(x,z,face){
 }
 
 var WALLT=0.22, DOORW=2.2, DOORH=2.4, SILL=1.12, HEAD=2.28;
+
+/* Where the rifleman lies across the front of the saloon he lies on.
+
+   He used to kneel, and a kneeling man is head and shoulders over the false
+   fronts along this row - they run from six and a half to seven and a half
+   metres and his rifle was at seven-eleven. Lying down puts him under all of
+   them, and the ones in his way are not his own but his neighbours', stood in a
+   line between him and the length of the street. Measured, a prone man on the
+   old roof could see one per cent of it.
+
+   So the Occidental goes up a storey. It is the main saloon on the street and a
+   two-storey one is no odd thing, it gives the stair something to climb, and it
+   is the only thing that puts a man lying on his belly above the roofline of
+   the row rather than behind it. */
+var PERCH_DX=-3.2, PERCH_GAP=3.0;
+
+/* The second half of it: the parapet in front of him has to go, not be lowered.
+   A man lying down who wants to shoot at the street six metres below has to put
+   the barrel over at a steep angle, and tilting a rifle down about a pivot that
+   is a hand's width off the deck swings the muzzle down with it - measured, the
+   end of the barrel dips to within two centimetres of the roof. There is no
+   parapet low enough to shoot over from there. So he lies at the edge with the
+   muzzle out past the boards and the front left open where he lies, which is
+   how a man on a roof actually does it. It is also why the roof went up a
+   storey: from up here he is over the row instead of behind it. */
 var interiors=[];                       // rooms you can stand in, in world space
 function insideBuilding(x,z){
   for(var i=0;i<interiors.length;i++){
@@ -854,7 +1003,7 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
     S.part(1.5,1.2,0.12,MAT.glass, w/2-1.5,1.75,-d/2-0.07,false);
   }
 
-  var fh=h+(lowFront?0.95:rr(1.5,2.3)), i, deck=0;
+  var fh=h+(lowFront?0.30:rr(1.5,2.3)), i, deck=0;   // lowFront: the perch roof, kept clear
   S.part(0.30,h,0.34,shell,-w/2-0.12,h/2,-d/2-0.14,false);           // corner pilasters
   S.part(0.30,h,0.34,shell, w/2+0.12,h/2,-d/2-0.14,false);
   S.part(w+0.34,0.20,0.42,MAT.wood1,0,h+0.02,-d/2-0.16,false);       // cornice
@@ -900,6 +1049,10 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
       S.part(0.44,0.36,0.40,shell,-w/2-0.10,qy,-d/2-0.16,false);
       S.part(0.44,0.36,0.40,shell, w/2+0.10,qy,-d/2-0.16,false);
     }
+  }else if(lowFront){
+    var gL=PERCH_DX-PERCH_GAP/2, gR=PERCH_DX+PERCH_GAP/2, FW=(w+0.34)/2;
+    S.part(gL+FW,fh-h,0.36,shell,(-FW+gL)/2,(h+fh)/2,-d/2-0.14,false);
+    S.part(FW-gR,fh-h,0.36,shell,(gR+FW)/2,(h+fh)/2,-d/2-0.14,false);
   }else{
     S.part(w+0.34,fh-h,0.36,shell,0,(h+fh)/2,-d/2-0.14,false);       // plain false front
   }
@@ -948,7 +1101,12 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
      half a metre. Leaving a real gap means nothing has to be excused. */
   if(open){
     var fbw=(w+0.34-DOORW)/2;
-    S.blocker(-(DOORW+fbw)/2,-d/2-0.14,fbw,0.36,fh);
+    if(lowFront){                        // the same strip, with his firing step out of it
+      var qL=-(w+0.34)/2, qR=-DOORW/2;
+      var hL2=PERCH_DX-PERCH_GAP/2, hR2=PERCH_DX+PERCH_GAP/2;
+      S.blocker((qL+hL2)/2,-d/2-0.14,hL2-qL,0.36,fh);
+      S.blocker((hR2+qR)/2,-d/2-0.14,qR-hR2,0.36,fh);
+    }else S.blocker(-(DOORW+fbw)/2,-d/2-0.14,fbw,0.36,fh);
     S.blocker( (DOORW+fbw)/2,-d/2-0.14,fbw,0.36,fh);
   }else S.blocker(0,-d/2-0.14,w+0.34,0.36,fh);
 
@@ -961,6 +1119,25 @@ function building(x,z,face,w,d,h,name,kind,lowFront,style,paint){
   var sign=new THREE.Mesh(new THREE.PlaneGeometry(sw,sw*0.25),
     new THREE.MeshLambertMaterial({map:signTex(name,'#4b3421','#E8DCC0')}));
   sign.position.set(0,h+0.74,-d/2-0.34); sign.rotation.y=Math.PI; g.add(sign);
+
+  /* The building is finished, so flatten it. This is the last thing done to it
+     and nothing outside holds a mesh from it, so there is nothing left to break:
+     buildTown throws the returned S away, and the only arrays that keep hold of
+     anything are hitables - fixed up below - and folk and doors, both of which
+     keep Groups that bake steps straight over.
+
+     A fitted saloon was close to three hundred draws and its shell alone was a
+     hundred casters, and every one of those was handed over twice a frame, once
+     for the picture and once for the shadow map. Flattened it is a handful.
+
+     Walls were registered one at a time as things you can shoot. Those parts are
+     gone now, so any hitable that baking orphaned has to come out of the list -
+     left in, it would point the raycaster at a mesh that is no longer in the
+     scene, carrying a world matrix that will never be updated again. Testing for
+     a null parent finds exactly those and leaves the door leaves alone. */
+  var baked=bake(g,0), q;
+  for(q=hitables.length-1;q>=0;q--) if(!hitables[q].parent) hitables.splice(q,1);
+  for(q=0;q<baked.length;q++) hitables.push(baked[q]);
   return S;
 }
 
@@ -1262,7 +1439,14 @@ function hangDoors(S,face,x,z,d,kind){
       box(sl*0.62,0.05,0.055,PLANKDOOR,scx,1.70,-0.035,p);
       box(0.055,0.055,0.11,MAT.brass,dir*(sl-0.16),1.06,-0.06,p);
     }
-    p.traverse(function(o){ if(o.isMesh){ o.castShadow=false; hitables.push(o); } });
+    /* A leaf swings, but nothing on a leaf moves relative to the leaf - the
+       rails, the panel, the pane and the knob are one board with hinges. So the
+       leaf group stays, and is still what the door animation turns; only the
+       boards inside it are flattened. Fifteen doorways were four hundred and
+       forty draws stood in the street. */
+    p.traverse(function(o){ if(o.isMesh) o.castShadow=false; });
+    var pb=bake(p);
+    for(var q=0;q<pb.length;q++) hitables.push(pb[q]);
   }
   leaf(hL,1); leaf(hR,-1);
   var c=Math.cos(face), sn=Math.sin(face);
@@ -1283,6 +1467,7 @@ function hangDoors(S,face,x,z,d,kind){
 function dressInterior(S,kind,w,d,h){
   var g=S.g;
   S.noShadow=true;                       // fittings skip the shadow pass, walls do not
+  var fitted0=g.children.length;         // everything added past here is a fitting
   function it(lw,lh,ld,mat,lx,ly,lz,solid){ return S.part(lw,lh,ld,mat,lx,ly,lz,solid===true); }
   function cyl(r1,r2,hh,seg,mat,lx,ly,lz){
     var m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,hh,seg),mat);
@@ -1430,6 +1615,13 @@ function dressInterior(S,kind,w,d,h){
     mapp.position.set(0,2.2,back+0.55); mapp.rotation.y=Math.PI; g.add(mapp);
     for(i=0;i<3;i++) it(2.0,1.5,0.5,MAT.inside,-w/2+1.3,0.75,-2.0+i*1.6,true);
   }
+  /* noShadow only ever reached the fittings built through S.part. The bottles,
+     the chandeliers, the faro layout, the pews - everything laid in with cyl or
+     a bare mesh - kept casting, and a room full of furniture is a lot of casters
+     for shadows thrown inside a closed building where nobody can see them. */
+  for(var ns=fitted0;ns<g.children.length;ns++)
+    g.children[ns].traverse(function(o){ if(o.isMesh) o.castShadow=false; });
+
   S.noShadow=false;
 }
 
@@ -1450,10 +1642,16 @@ var TOWN_N=[
 var PERCH=null;
 function saloonRoof(bx,bz,w,d,h){
   var rY=h+0.09, i;
-  PERCH={x:bx-1.6,z:bz-d/2+1.25,y:rY,yaw:0};
+  /* Lined up on the notch, and far enough back that his boots are on the deck
+     and only the barrel is through the gap. */
+  PERCH={x:bx+PERCH_DX,z:bz-d/2+0.30,y:rY,yaw:0};
   platforms.push({x0:bx-w/2-0.2,x1:bx+w/2+0.2,z0:bz-d/2-0.1,z1:bz+d/2+0.9,y:rY});
 
-  var N=14, run=0.48, rise=rY/N;
+  /* Tread count follows the height rather than being fixed at fourteen: the
+     roof went up two metres and fourteen steps to it would be a rise of over
+     half a metre a tread, which is higher than the step-up allowance will
+     carry you - the stair would simply stop working. */
+  var run=0.48, N=Math.max(12,Math.round(rY/0.41)), rise=rY/N;
   var sz=bz+d/2+1.55;                      // centre line of the flight
   var x0=bx-3.6, span=N*run;
   var len=Math.sqrt(span*span+rY*rY), ang=Math.atan2(rY,span);
@@ -1496,7 +1694,7 @@ stage('raising the town',291,function buildTown(){
   for(i=0;i<TOWN_S.length;i++){
     e=TOWN_S[i];
     var bd=rr(9.5,11), bh=(e[3]==='two')?7.6:rr(4.7,5.5), bx=xs+e[2]/2, bz=14+bd/2;
-    if(i===0) bh=5.6;
+    if(i===0) bh=7.6;                    // the perch: see PERCH_DX
     building(bx,bz,0,e[2],bd,bh,e[0],e[1],i===0,e[3],e[4]);
     if(i===0) saloonRoof(bx,bz,e[2],bd,bh);
     xs+=e[2]+rr(1.3,2.6);
@@ -1743,15 +1941,15 @@ function cactus(x,z,kind){
   if(kind===0||kind===1){                                   // saguaro
     var hgt=rr(2.2,4.2);
     var t=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.34,hgt,10),m);
-    t.position.y=hgt/2; t.castShadow=true; g.add(t); hitables.push(t);
+    t.position.y=hgt/2; g.add(t);
     var cap=new THREE.Mesh(new THREE.SphereGeometry(0.28,10,6),m);
     cap.position.y=hgt; cap.scale.y=0.7; g.add(cap);
     for(i=0;i<ri(1,3);i++){
       var side=(i%2?1:-1), ay=rr(hgt*0.35,hgt*0.66), al=rr(0.55,1.0), ul=rr(0.7,1.5);
       var a=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.19,al,8),m);
-      a.position.set(side*al*0.45,ay,0); a.rotation.z=-side*Math.PI/2.4; a.castShadow=true; g.add(a);
+      a.position.set(side*al*0.45,ay,0); a.rotation.z=-side*Math.PI/2.4; g.add(a);
       var up=new THREE.Mesh(new THREE.CylinderGeometry(0.155,0.175,ul,8),m);
-      up.position.set(side*(al*0.82),ay+ul/2-0.06,0); up.castShadow=true; g.add(up);
+      up.position.set(side*(al*0.82),ay+ul/2-0.06,0); g.add(up);
       var uc=new THREE.Mesh(new THREE.SphereGeometry(0.16,8,6),m);
       uc.position.set(side*(al*0.82),ay+ul-0.06,0); uc.scale.y=0.7; g.add(uc);
     }
@@ -1761,15 +1959,14 @@ function cactus(x,z,kind){
     for(i=0;i<pads;i++){
       var pd=new THREE.Mesh(new THREE.SphereGeometry(rr(0.26,0.40),9,7),m);
       pd.position.set(px,py,rr(-0.12,0.12));
-      pd.scale.set(1,1.25,0.30); pd.rotation.z=pr; pd.castShadow=true; g.add(pd);
-      hitables.push(pd);
+      pd.scale.set(1,1.25,0.30); pd.rotation.z=pr; g.add(pd);
       pr=rr(-0.7,0.7); px+=Math.sin(pr)*0.34; py+=rr(0.26,0.40);
     }
   }else if(kind===3){                                       // barrel cactus, ribbed
     blockR=0.55;
     var br=rr(0.28,0.46), bh=rr(0.42,0.80);
     var bd=new THREE.Mesh(new THREE.CylinderGeometry(br*0.86,br*0.78,bh,11),m);
-    bd.position.y=bh/2; bd.castShadow=true; g.add(bd); hitables.push(bd);
+    bd.position.y=bh/2; g.add(bd);
     var bc=new THREE.Mesh(new THREE.SphereGeometry(br*0.86,11,6),m);
     bc.position.y=bh; bc.scale.y=0.5; g.add(bc);
     for(i=0;i<9;i++){
@@ -1786,7 +1983,7 @@ function cactus(x,z,kind){
         var cane=new THREE.Mesh(new THREE.CylinderGeometry(0.030,0.055,wl,6),m);
         cane.position.set(Math.cos(wa)*wl*0.16,wl/2,Math.sin(wa)*wl*0.16);
         cane.rotation.z=-Math.cos(wa)*0.30; cane.rotation.x=Math.sin(wa)*0.30;
-        cane.castShadow=true; g.add(cane);
+        g.add(cane);
       }
     }else{
       var st=new THREE.Mesh(new THREE.CylinderGeometry(0.10,0.16,rr(0.5,1.1),8),MAT.wood1);
@@ -1796,10 +1993,16 @@ function cactus(x,z,kind){
         var bl=new THREE.Mesh(new THREE.ConeGeometry(0.055,yl,4),m);
         bl.position.set(Math.cos(ya)*0.22,0.62+yl*0.36,Math.sin(ya)*0.22);
         bl.rotation.z=-Math.cos(ya)*0.85; bl.rotation.x=Math.sin(ya)*0.85;
-        bl.castShadow=true; g.add(bl);
+        g.add(bl);
       }
     }
   }
+  /* Nine or ten limbs and ribs go in; one mesh comes out - two for a yucca,
+     whose stem is wood rather than cactus. What you can shoot is now the whole
+     plant rather than the trunk alone, which is how it should have read in the
+     first place: a bullet into the top of a saguaro used to go straight through. */
+  var baked=bake(g);
+  for(i=0;i<baked.length;i++){ baked[i].castShadow=true; hitables.push(baked[i]); }
   addBlocker(x,z,blockR,blockR,2.5);
 }
 function rock(x,z,s,mat,noBlock){
@@ -1951,7 +2154,8 @@ stage('weeds along the street',24,function scatterWeeds(){
       wb.rotation.set(rr(0,TAU),rr(0,TAU),rr(0,TAU));
       G.add(wb);
     }
-    G.traverse(function(o){ if(o.isMesh) o.castShadow=true; });
+    var tb=bake(G);             // fifty-six twigs down to two, and they are all rolling
+    for(i=0;i<tb.length;i++) tb[i].castShadow=true;
     return {g:G,r:R};
   }
   for(var i=0;i<8;i++){

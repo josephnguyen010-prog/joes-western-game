@@ -83,6 +83,13 @@ body.cursoraim.playing #app{cursor:none}
 #bars b.on{background:linear-gradient(180deg,var(--bone),var(--dust));border-color:var(--bone)}
 #bars b.low{background:linear-gradient(180deg,var(--oxide),#7d2a1c);border-color:var(--oxide)}
 #state{margin-top:9px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass);min-height:14px}
+/* F3. Draw calls are the number that matters on this page - the frame is a list
+   of things to hand the card one at a time, and the shadow pass hands it the
+   whole list again. */
+#perf{position:absolute;top:14px;right:14px;padding:7px 11px;
+  background:rgba(20,16,14,.74);border:1px solid rgba(235,224,203,.13);
+  font:11px/1.6 var(--type);letter-spacing:.09em;color:var(--brass);
+  white-space:pre;text-align:right;pointer-events:none}
 
 #gunhud{position:absolute;right:18px;bottom:18px;display:flex;align-items:flex-end;gap:16px}
 #cyl{position:relative;width:92px;height:92px;border-radius:50%;border:1px solid rgba(185,154,110,.35);
@@ -112,6 +119,12 @@ body.cursoraim.playing #app{cursor:none}
   background:radial-gradient(ellipse 62% 56% at 50% 50%,
     rgba(0,0,0,0) 45%, rgba(16,11,8,.34) 78%, rgba(10,7,5,.62) 100%)}
 #scope.on{display:block}
+/* No reticle. The Springfield is aimed the way it was aimed in 1873: line the
+   top of the front blade up in the rear notch and put it on the man. The rig is
+   dropped so both sights land on the middle of the screen, which is where the
+   shot goes - so the sight picture is not decoration, it is the aim. All that
+   is left of the overlay is the vignette closing in when you settle down on
+   them. */
 #scope i{display:none}
 #prompt{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);font-size:13px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--brass);background:rgba(20,16,14,.7);padding:6px 14px;
@@ -195,6 +208,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     <div class="panel" id="compass"><div id="strip"></div><div id="needle"></div></div>
     <div class="panel" id="notches"><span class="lbl">Notches cut</span><div id="tally"></div></div>
     <div class="panel" id="grit"><span class="lbl">Grit</span><div id="bars"></div><div id="state"></div></div>
+    <div id="perf" hidden></div>
     <div id="gunhud">
       <div id="ammoTxt"><div class="val"><span id="ammoN">6</span><span id="ammoOf"> / 6</span></div><span class="lbl" id="cal">.45 Colt</span>
         <div id="guns" hidden><b id="gunColt">1 &middot; Colt</b><b id="gunRifle">2 &middot; Sharps</b></div>
