@@ -4,7 +4,7 @@ A first-person western built as a single web page. Cimarron County, No Man's Lan
 
 Everything you see is generated in code at load time. There are no image files, no model files and no audio files in this repository — the town, the terrain, the outlaws, the horses, the wanted posters and every gunshot are built from primitives, canvas drawing and the Web Audio API.
 
-**Play it:** open `index.html` in a browser. Nothing to install.
+**[Play it in the browser →](https://josephnguyen010-prog.github.io/Joseph-Nguyen-Portfolio/joes-wild-west-game/)**, or open `index.html` locally. Nothing to install.
 
 ---
 
@@ -19,11 +19,13 @@ Everything you see is generated in code at load time. There are no image files, 
 | Space | Jump |
 | Left click | Fire |
 | R | Reload the Colt, one round at a time through the gate |
-| 1 / 2 | Colt / Springfield rifle |
+| 1 / 2, mouse wheel | Colt / Springfield rifle, once you have picked the rifle up |
 | Z | Sticky aim, if you prefer a toggle |
 | F | Ride the wagon, or get down |
 | Q / E, arrows | Turn |
 | Esc | Pause menu — resume, full control list, or quit |
+| Enter, Space or R | Play again, after you go down |
+| F3 | Frame-rate and performance overlay |
 
 ### Two aiming modes
 
@@ -53,7 +55,7 @@ Thirteen outlaws arrive in three waves. Clear the street.
 
 ## How it's built
 
-Three.js r128 from a CDN, and about 3,000 lines of plain ES5 JavaScript in one page. No build tooling, no framework, no package manager.
+Three.js r128 from a CDN, and about 4,100 lines of plain ES5 JavaScript in one page. No build tooling, no framework, no package manager.
 
 ```
 index.html          the playable page — everything bundled into one file
