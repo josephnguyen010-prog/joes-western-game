@@ -18,7 +18,8 @@ var ui={
   tally:$('tally'),bars:$('bars'),state:$('state'),ammoN:$('ammoN'),cyl:$('cyl'),
   feed:$('feed'),prompt:$('prompt'),cross:$('cross'),mark:$('mark'),hurt:$('hurt'),strip:$('strip'),
   cal:$('cal'),scope:$('scope'),pause:$('pause'),ammoOf:$('ammoOf'),
-  guns:$('guns'),gunColt:$('gunColt'),gunRifle:$('gunRifle'),perf:$('perf')
+  guns:$('guns'),gunColt:$('gunColt'),gunRifle:$('gunRifle'),perf:$('perf'),
+  callout:$('callout'),dmgdir:$('dmgdir'),banner:$('banner')
 };
 (function initHud(){
   var i,b;
@@ -45,6 +46,35 @@ function feed(html){
 }
 var stateMsgT=0, lastStateTxt=null;
 function say(msg,dur){ ui.state.textContent=msg; stateMsgT=dur||2.2; lastStateTxt=null; }
+
+/* Restart a CSS animation that is keyed off a class. */
+function replay(el,cls){ el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+var REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+var ROMAN=['I','II','III','IV','V'];
+function banner(eye,title,sub){
+  $('bEye').textContent=eye; $('bTitle').textContent=title; $('bSub').textContent=sub;
+  replay(ui.banner,'on');
+}
+function callout(txt){ ui.callout.textContent=txt; replay(ui.callout,'on'); }
+
+/* An arc on the ring around the reticle, turned toward whoever fired. The
+   camera looks down -z, so straight ahead is (-sin yaw, -cos yaw) and right is
+   (cos yaw, -sin yaw); the angle between them is the arc's clockwise turn. */
+function hurtFrom(x,z,kick){
+  var dx=x-P.x, dz=z-P.z;
+  var fwd=-Math.sin(P.yaw)*dx-Math.cos(P.yaw)*dz;
+  var right=Math.cos(P.yaw)*dx-Math.sin(P.yaw)*dz;
+  var a=document.createElement('i');
+  a.style.transform='rotate('+(Math.atan2(right,fwd)*180/Math.PI).toFixed(1)+'deg)';
+  ui.dmgdir.appendChild(a);
+  setTimeout(function(){ if(a.parentNode)a.parentNode.removeChild(a); },1200);
+  if(!REDUCED) P.flinch=Math.max(P.flinch||0,kick);
+}
+/* A short flinch when a round lands, and nothing otherwise - the view is kept
+   level and still the rest of the time, deliberately. */
+function flinchPitch(){ return (P.flinch||0)*0.05; }
+function flinchYaw(){ return (P.flinch||0)*Math.sin(GAME.t*47)*0.018; }
 
 /* --- input --- */
 var keys={},mouseDX=0,mouseDY=0;
@@ -261,8 +291,12 @@ function castShot(spread,bodyDmg,headDmg,far){
       var e=ud.owner; GAME.hits++;
       e.hp-=(ud.part==='head')?headDmg:bodyDmg; e.hitT=0.18;
       FX.puff(h.point,3,0x7a2b1e,0.13,0.9,0.5);
-      ui.mark.classList.remove('hit'); void ui.mark.offsetWidth; ui.mark.classList.add('hit');
-      if(e.hp<=0) killOutlaw(e,'shot'); else AU.ric();
+      ui.mark.classList.toggle('kill',e.hp<=0);
+      replay(ui.mark,'hit');
+      if(e.hp<=0){
+        if(ud.part==='head') callout('Headshot');
+        killOutlaw(e,'shot');
+      } else AU.ric();
     }else{
       var n=h.face?h.face.normal.clone().transformDirection(h.object.matrixWorld):new THREE.Vector3(0,1,0);
       FX.impact(h.point,n);
@@ -451,7 +485,7 @@ function updatePlayer(dt){
   // The view is held level and still. Head bob and camera roll read as
   // gimmickry rather than motion, so neither is applied here.
   camera.position.set(P.x,P.y+EYE,P.z);
-  camera.rotation.set(P.pitch,P.yaw,0,'YXZ');
+  camera.rotation.set(P.pitch+flinchPitch(),P.yaw+flinchYaw(),0,'YXZ');
 }
 
 /* --- the viewmodel --- */
@@ -605,6 +639,7 @@ function outlawShoot(e,d){
   if(hit){
     var dmg=rr(7,13);
     GAME.hp-=dmg; P.hurtT=0.5;
+    hurtFrom(e.x,e.z,0.6);
     AU.hurt();
     if(GAME.hp<=0){ GAME.hp=0; endGame(false); }
   } else if(rnd()<0.5) setTimeout(function(){AU.ric();},60);
@@ -614,7 +649,7 @@ var riflePickup=null;
 function dropRifle(x,y,z){
   if(riflePickup)return;
   riflePickup=makeRiflePickup(x,y+0.1,z);
-  feed('his <em>Sharps</em> is still on the roof');
+  feed('his <em>Springfield</em> is still on the roof');
 }
 
 /* How high off the roof the Springfield lies now that he is prone. The muzzle,
@@ -636,6 +671,7 @@ function riflemanShoot(e,d){
   AU.rifle(d);
   if(hit){
     GAME.hp-=rr(20,29); P.hurtT=0.8; AU.hurt();
+    hurtFrom(mz.x,mz.z,1);
     feed('<em>'+e.name+'</em> has your range');
     if(GAME.hp<=0){ GAME.hp=0; endGame(false); }
   }else if(rnd()<0.7) setTimeout(function(){AU.ric();},70);
@@ -926,7 +962,7 @@ function updateCar(dt){
     camera.position.set(car.x-Math.sin(car.yaw)*0.72-Math.cos(car.yaw)*0.42,
                         gy+2.02,
                         car.z-Math.cos(car.yaw)*0.72+Math.sin(car.yaw)*0.42);
-    camera.rotation.set(P.pitch,P.yaw,0,'YXZ');
+    camera.rotation.set(P.pitch+flinchPitch(),P.yaw+flinchYaw(),0,'YXZ');
   }
 }
 
@@ -961,6 +997,9 @@ function spawnWave(){
   ui.wave.textContent=GAME.wave;
   ui.objtxt.textContent=GAME.wave===1?'they know you are here':(GAME.wave===2?'more riding in from the flats':'the last of the Prines');
   say('riders coming in',2.6);
+  banner(GAME.wave===1?'High noon · Cimarron County':(GAME.wave===WAVES.length?'Final wave':'Riders coming in'),
+         'Wave '+(ROMAN[GAME.wave-1]||GAME.wave),
+         ui.objtxt.textContent);
   if(GAME.wave>1) feed('<em>'+n+' more</em> off the flats');
 }
 
@@ -1020,6 +1059,7 @@ function updateHud(dt){
   var hp=Math.max(0,Math.round(GAME.hp));
   if(hp!==lastHp){
     lastHp=hp; var on=Math.ceil(hp/10);
+    document.body.classList.toggle('lowgrit',hp<32);
     for(var b=0;b<10;b++) barEls[b].className=b<on?(on<=3?'low':'on'):'';
   }
   if(GAME.left!==lastLeft){ lastLeft=GAME.left; ui.left.textContent=GAME.left; }
@@ -1158,6 +1198,7 @@ function frame(now){
   }else if(GAME.state==='play'&&!GAME.paused){
     GAME.t+=dt;
     if(P.hurtT>0)P.hurtT-=dt;
+    if(P.flinch>0)P.flinch=Math.max(0,P.flinch-dt*4);
     updatePlayer(dt);
     updateDoors(dt);
     updateFolk(dt);
@@ -1220,7 +1261,8 @@ function beginRun(){
   GAME.state='play'; GAME.paused=false;
   GAME.kills=0; GAME.left=0; GAME.wave=0; GAME.shots=0; GAME.hits=0; GAME.t=0; GAME.hp=100; GAME.nextWaveT=3.2;
   P.x=-34; P.z=0; P.y=terrainH(-34,0); P.vy=0; P.yaw=-Math.PI/2; P.pitch=-0.02;
-  P.ammo=6; P.reloading=false; P.recoil=0; P.inCar=false; P.hurtT=0; P.fireHeld=false;
+  P.ammo=6; P.reloading=false; P.recoil=0; P.inCar=false; P.hurtT=0; P.fireHeld=false; P.flinch=0;
+  ui.dmgdir.innerHTML='';
   dropAds();
   P.weapon='colt'; P.hasRifle=false; P.rifleAmmo=0; P.rifleWork=0;
   ui.guns.hidden=true;

@@ -16,7 +16,12 @@ html,body{height:100%}
 body{margin:0;background:var(--ink);color:var(--bone);font-family:var(--type);overflow:hidden;-webkit-font-smoothing:antialiased}
 #app{position:fixed;inset:0;overflow:hidden;background:var(--ink);user-select:none;-webkit-user-select:none}
 body.cursoraim.playing #app{cursor:none}
-#view{position:absolute;inset:0;width:100%;height:100%;display:block}
+#view{position:absolute;inset:0;width:100%;height:100%;display:block;
+  /* A light grade over the whole frame: a touch more contrast and warmth than
+     Lambert shading gives on its own, so the street reads as sun-baked rather
+     than flat. Low on grit, the colour drains out of it. */
+  filter:contrast(1.07) saturate(1.14) sepia(.07);transition:filter .9s ease}
+body.lowgrit #view{filter:contrast(1.12) saturate(.38) sepia(.18) brightness(.94)}
 
 /* --- atmosphere overlays --- */
 #vig{position:absolute;inset:0;pointer-events:none;
@@ -47,6 +52,40 @@ body.cursoraim.playing #app{cursor:none}
 #mark i:nth-child(3){top:50%;left:0;height:2px;width:8px;margin-top:-1px}
 #mark i:nth-child(4){top:50%;right:0;height:2px;width:8px;margin-top:-1px}
 #mark.hit{animation:pop .26s ease-out}
+/* A kill is the same mark, bigger, in blood rather than rust, and held longer. */
+#mark.kill{width:38px;height:38px}
+#mark.kill i{background:#E0331C;box-shadow:0 0 6px rgba(224,51,28,.8)}
+#mark.kill.hit{animation:pop .42s ease-out}
+#mark.kill i:nth-child(1),#mark.kill i:nth-child(2){height:13px;width:2.5px}
+#mark.kill i:nth-child(3),#mark.kill i:nth-child(4){width:13px;height:2.5px}
+#callout{position:absolute;left:50%;top:calc(50% + 34px);transform:translateX(-50%);pointer-events:none;
+  font-family:var(--display);font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);
+  text-shadow:0 1px 0 #000,0 0 10px rgba(0,0,0,.8);opacity:0;white-space:nowrap}
+#callout.on{animation:callout 1.1s ease-out}
+@keyframes callout{0%{opacity:0;transform:translateX(-50%) scale(1.5)}12%{opacity:1;transform:translateX(-50%) scale(1)}70%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-8px)}}
+
+/* Which way the shot came from: an arc on a ring around the reticle, turned to
+   face the shooter. */
+#dmgdir{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none}
+#dmgdir i{position:absolute;left:-130px;top:-130px;width:260px;height:260px;border-radius:50%;
+  border:5px solid transparent;border-top-color:rgba(214,48,28,.92);
+  filter:drop-shadow(0 0 6px rgba(214,48,28,.8));animation:dmg 1.15s ease-out forwards}
+@keyframes dmg{0%{opacity:1}60%{opacity:.85}100%{opacity:0}}
+
+/* Wave title: stamped onto the middle of the screen, then gone. */
+#banner{position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;
+  opacity:0;color:var(--bone);text-shadow:0 2px 0 #000,0 0 26px rgba(0,0,0,.85)}
+#banner .bEye{font-size:12px;letter-spacing:.42em;text-transform:uppercase;color:var(--brass)}
+#banner .bTitle{font-family:var(--display);font-size:clamp(44px,8vw,92px);line-height:1;margin:8px 0 6px;letter-spacing:.03em}
+#banner .bSub{font-size:14px;letter-spacing:.12em;color:var(--dust)}
+#banner .bRule{height:4px;width:min(420px,70vw);margin:10px auto 0;border-top:1px solid rgba(235,224,203,.7);border-bottom:1px solid rgba(235,224,203,.7)}
+#banner.on{animation:stamp 3.3s cubic-bezier(.2,.9,.25,1) forwards}
+@keyframes stamp{0%{opacity:0;transform:translate(-50%,-50%) scale(1.6)}9%{opacity:1;transform:translate(-50%,-50%) scale(.97)}
+  13%{transform:translate(-50%,-50%) scale(1)}78%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.04)}}
+@media (prefers-reduced-motion:reduce){
+  #banner.on{animation:fadeonly 3.3s linear forwards}
+  @keyframes fadeonly{0%,100%{opacity:0;transform:translate(-50%,-50%)}8%,80%{opacity:1;transform:translate(-50%,-50%)}}
+}
 @keyframes pop{0%{opacity:1;transform:translate(-50%,-50%) rotate(45deg) scale(.6)}100%{opacity:0;transform:translate(-50%,-50%) rotate(45deg) scale(1.35)}}
 
 /* --- hud shell --- */
@@ -200,6 +239,9 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
   <div id="hud">
     <div id="cross"><i></i><i></i><i></i><i></i><i></i></div>
     <div id="mark"><i></i><i></i><i></i><i></i></div>
+    <div id="callout"></div>
+    <div id="dmgdir"></div>
+    <div id="banner"><div class="bEye" id="bEye"></div><div class="bTitle" id="bTitle"></div><div class="bSub" id="bSub"></div><div class="bRule"></div></div>
     <div class="panel" id="ledger">
       <div class="row"><span class="lbl">Joe&rsquo;s Wild West Game</span><span class="lbl" id="clock">0:00</span></div>
       <div class="row"><span class="val" id="left">12</span><span class="lbl">outlaws afoot</span></div>
@@ -211,7 +253,7 @@ h1{font-family:var(--display);font-size:clamp(36px,7vw,68px);line-height:.98;mar
     <div id="perf" hidden></div>
     <div id="gunhud">
       <div id="ammoTxt"><div class="val"><span id="ammoN">6</span><span id="ammoOf"> / 6</span></div><span class="lbl" id="cal">.45 Colt</span>
-        <div id="guns" hidden><b id="gunColt">1 &middot; Colt</b><b id="gunRifle">2 &middot; Sharps</b></div>
+        <div id="guns" hidden><b id="gunColt">1 &middot; Colt</b><b id="gunRifle">2 &middot; Springfield</b></div>
       </div>
       <div id="cyl"></div>
     </div>
