@@ -360,7 +360,7 @@ function Outlaw(x,z,name){
   var armR=bx(0.15,0.58,0.17,coat, 0.36,1.52,0.02);
   armL.geometry.translate(0,-0.29,0); armL.position.y=1.76;
   armR.geometry.translate(0,-0.29,0); armR.position.y=1.76;
-  var pistol=bx(0.05,0.07,0.20,MAT.metal,0,-0.52,-0.10,armR);
+  bx(0.05,0.07,0.20,MAT.metal,0,-0.52,-0.10,armR);              // pistol in hand
   var head=new THREE.Mesh(new THREE.SphereGeometry(0.155,10,8),skin);
   head.position.y=1.95; head.castShadow=true; g.add(head);
   head.userData={owner:null,part:'head'};
@@ -617,7 +617,7 @@ stage('hitching the team',13,function(){ car=(function(){
   cb(1.60,0.10,0.14,IRONW,0,0.66,0.92);
   cb(0.13,0.11,3.30,WOODW,0,0.62,2.55);                     // wagon tongue
   cb(1.50,0.10,0.10,WOODW,0,0.62,3.30);                     // doubletree
-  var lant=cb(0.16,0.22,0.16,IRONW,0.92,1.42,0.88);
+  cb(0.16,0.22,0.16,IRONW,0.92,1.42,0.88);                     // lantern
   var glow=new THREE.Mesh(new THREE.SphereGeometry(0.06,7,6),
     new THREE.MeshLambertMaterial({color:0xFFD79A,emissive:0xC98A24}));
   glow.position.set(0.92,1.42,0.88); g.add(glow);

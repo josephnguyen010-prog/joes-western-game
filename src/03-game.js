@@ -370,11 +370,11 @@ function updatePlayer(dt){
   mouseDX=0; mouseDY=0;
   if(cursorAim&&!dragging){
     // a small dead zone in the middle for aiming, then it turns hard
-    var nx=clamp((curX/window.innerWidth)*2-1,-1,1);
-    var ny=clamp((curY/window.innerHeight)*2-1,-1,1);
+    var ax=clamp((curX/window.innerWidth)*2-1,-1,1);
+    var ay=clamp((curY/window.innerHeight)*2-1,-1,1);
     var dz=0.18;
-    var ex=Math.abs(nx)>dz?(nx-(nx<0?-dz:dz))/(1-dz):0;
-    var ey=Math.abs(ny)>dz?(ny-(ny<0?-dz:dz))/(1-dz):0;
+    var ex=Math.abs(ax)>dz?(ax-(ax<0?-dz:dz))/(1-dz):0;
+    var ey=Math.abs(ay)>dz?(ay-(ay<0?-dz:dz))/(1-dz):0;
     var sc=camera.fov/74;
     P.yaw-=(ex<0?-1:1)*ex*ex*5.0*sc*dt;
     P.pitch-=(ey<0?-1:1)*ey*ey*2.6*sc*dt;

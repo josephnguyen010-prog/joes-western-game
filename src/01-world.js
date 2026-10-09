@@ -1167,7 +1167,7 @@ function person(g,x,y,z,yaw,cfg){
     b(0.44,tBot-hip+0.08,0.30,legMat,0,(hip+tBot)/2,0);
     for(var lg=0;lg<2;lg++){
       var pv=new THREE.Group(); pv.position.set(lg?0.14:-0.14,hip,0); G.add(pv);
-      var up=b(0.19,0.46,0.21,legMat,0,-0.23,0,pv);
+      b(0.19,0.46,0.21,legMat,0,-0.23,0,pv);                      // thigh
       if(seated){ pv.rotation.x=-1.45; }
       var kn=new THREE.Group(); kn.position.y=-0.46; pv.add(kn);
       b(0.16,0.44,0.18,coat,0,-0.22,0,kn);
@@ -1417,8 +1417,8 @@ function hangDoors(S,face,x,z,d,kind){
       box(lw-0.11,0.085,0.092,DOORMAT,cx,y0+0.58,0,p);          // mid rail
       // louvres
       for(i=0;i<9;i++){
-        var sl=box(lw-0.12,0.050,0.064,DOORMAT,cx,y0+0.70+i*0.072,0,p);
-        sl.rotation.x=-0.42;
+        var louvre=box(lw-0.12,0.050,0.064,DOORMAT,cx,y0+0.70+i*0.072,0,p);
+        louvre.rotation.x=-0.42;
       }
       box(lw-0.11,0.075,0.092,DOORMAT,cx,y1-0.20,0,p);          // rail under the head
       box(0.036,0.125,0.125,MAT.brass,dir*0.088,y0+0.42,0,p);   // brass hinge plates
